@@ -51,18 +51,11 @@ const particles: StarParticle[] = Array.from({ length: 90 }, () => ({
 }));
 
 let frame = 0;
-let isPlaying = true;
 
-setupArtworkViewer('celestial-waves', {
-  interactionHint: '마우스를 움직여 파동의 중심점을 이동시키고, 클릭하여 공명을 일으키세요.',
-  onTogglePlay: (playing) => {
-    isPlaying = playing;
-  },
-});
+setupArtworkViewer('celestial-waves');
 
 function animate() {
-  if (isPlaying) {
-    frame++;
+  frame++;
 
     // Smooth mouse follow
     mouseX += (targetMouseX - mouseX) * 0.05;
@@ -134,7 +127,6 @@ function animate() {
     ctx.beginPath();
     ctx.arc(mouseX, mouseY, 180, 0, Math.PI * 2);
     ctx.fill();
-  }
 
   requestAnimationFrame(animate);
 }

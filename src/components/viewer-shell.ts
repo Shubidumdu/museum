@@ -1,14 +1,7 @@
 import "../style.css";
 import { ARTWORKS } from "../data/artworks.ts";
 
-export function setupArtworkViewer(
-  slug: string,
-  options?: {
-    interactionHint?: string;
-    onReset?: () => void;
-    onTogglePlay?: (isPlaying: boolean) => void;
-  },
-) {
+export function setupArtworkViewer(slug: string) {
   const artwork = ARTWORKS.find((a) => a.slug === slug);
   if (!artwork) {
     console.error(`Artwork with slug "${slug}" not found.`);
@@ -73,8 +66,4 @@ export function setupArtworkViewer(
       document.exitFullscreen().catch((err) => console.warn(err));
     }
   });
-
-  return {
-    artwork,
-  };
 }
