@@ -48,6 +48,10 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+canvas {
+  outline: none;
+}
+
 main {
   flex: 1;
 }

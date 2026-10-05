@@ -78,6 +78,44 @@ function initCardPreviews() {
           }
           ctx.stroke();
         }
+      } else if (artwork.slug === "my-own-paradise") {
+        // My Own Paradise (Babylon 3D floating orb & rings) preview
+        const cx = width / 2;
+        const cy = height / 2;
+        const time = frame * 0.025;
+
+        // Floating core
+        const coreY = cy + Math.sin(time) * 10;
+        ctx.save();
+        ctx.translate(cx, coreY);
+
+        // Outer Elliptical Rings
+        ctx.strokeStyle = "rgba(240, 173, 78, 0.7)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 60, 22, time * 0.4, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.strokeStyle = "rgba(208, 63, 44, 0.5)";
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 75, 28, -time * 0.3, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Core diamond / sphere
+        ctx.fillStyle = "#f0ad4e";
+        ctx.beginPath();
+        ctx.arc(0, 0, 18, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Orbiting satellite
+        const satX = Math.cos(time * 1.5) * 55;
+        const satY = Math.sin(time * 1.5) * 20;
+        ctx.fillStyle = "#38bdf8";
+        ctx.beginPath();
+        ctx.arc(satX, satY, 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
       } else if (artwork.slug === "chromatic-prism") {
         // Chromatic Prism preview
         const cx = width / 2;

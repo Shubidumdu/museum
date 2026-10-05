@@ -1,0 +1,148 @@
+import { Vector2, type Scene, type AbstractEngine } from "@babylonjs/core";
+
+export interface OceanParameters {
+  gridSize: number;
+  domainLength: number;
+  windSpeed: number;
+  windDirection: Vector2;
+  amplitude: number;
+}
+
+export class FFTOcean {
+  readonly N: number;
+  readonly L: number;
+  readonly windSpeed: number;
+  readonly windDirection: Vector2;
+  readonly amplitude: number;
+
+  kx: Float32Array;
+  kz: Float32Array;
+  h0Real: Float32Array;
+  h0Imag: Float32Array;
+  omega: Float32Array;
+  hReal: Float32Array;
+  hImag: Float32Array;
+
+  constructor(
+    scene: Scene,
+    _engine: AbstractEngine,
+    {
+      gridSize,
+      domainLength,
+      windDirection,
+      windSpeed,
+      amplitude,
+    }: OceanParameters,
+  ) {
+    this.N = gridSize;
+    this.L = domainLength;
+    this.windSpeed = windSpeed;
+    this.windDirection = windDirection.normalize();
+    this.amplitude = amplitude;
+
+    const N = this.N;
+    const totalSize = N * N;
+
+    this.kx = new Float32Array(totalSize);
+    this.kz = new Float32Array(totalSize);
+    this.h0Imag = new Float32Array(totalSize);
+    this.h0Real = new Float32Array(totalSize);
+    this.hReal = new Float32Array(totalSize);
+    this.hImag = new Float32Array(totalSize);
+    this.omega = new Float32Array(totalSize);
+
+    this.initSpectrum();
+  }
+
+  private initSpectrum() {
+    const N = this.N;
+    const L = this.L;
+    const g = 9.81;
+    const windDirection = this.windDirection;
+    const windSpeed = this.windSpeed;
+    const A = this.amplitude;
+    const Lwind = Math.pow(windSpeed, 2) / g;
+
+    for (let m = 0; m < N; m++) {
+      const kz = (2 * Math.PI * (m - N / 2)) / L;
+
+      for (let n = 0; n < N; n++) {
+        const kx = (2 * Math.PI * (n - N / 2)) / L;
+        const idx = m * N + n;
+
+        this.kx[idx] = kx;
+        this.kz[idx] = kz;
+
+        const kSquared = kx * kx + kz * kz;
+        const kLength = Math.sqrt(kSquared);
+
+        // 1. 0 주파수(중심점) 완벽 방어
+        if (kLength < 1e-6) {
+          this.h0Real[idx] = 0.0;
+          this.h0Imag[idx] = 0.0;
+          this.omega[idx] = 0.0;
+          continue;
+        }
+
+        // 2. 방향 단위 벡터 내적
+        const kDotW =
+          (kx / kLength) * windDirection.x + (kz / kLength) * windDirection.y;
+
+        // 3. Phillips Spectrum 올바른 차수 계산
+        // - 분모는 k^4 (즉 kSquared^2)
+        // - 지수 분모는 (k * Lwind)^2 (즉 kSquared * Lwind^2)
+        const kL2 = kSquared * (Lwind * Lwind);
+        const decay = Math.exp(-1.0 / kL2) / (kSquared * kSquared);
+
+        // 역풍 억제 및 방향 제곱 항
+        let phillips = 0.0;
+        if (kDotW > 0.0) {
+          phillips = A * decay * (kDotW * kDotW);
+        }
+
+        // 4. Box-Muller 가우시안 복소 난수
+        const u1 = Math.max(1e-7, Math.random());
+        const u2 = Math.random();
+        const randStd = Math.sqrt(-2.0 * Math.log(u1));
+        const xi_r = randStd * Math.cos(2.0 * Math.PI * u2);
+        const xi_i = randStd * Math.sin(2.0 * Math.PI * u2);
+
+        // 5. 초기 진폭 결합
+        const amp = Math.sqrt(phillips / 2.0);
+        this.h0Real[idx] = xi_r * amp;
+        this.h0Imag[idx] = xi_i * amp;
+
+        // 6. 각속도
+        this.omega[idx] = Math.sqrt(g * kLength);
+      }
+    }
+  }
+  updateSpectrum(t: number) {
+    const N = this.N;
+
+    for (let m = 0; m < N; m++) {
+      const neg_m = (N - m) % N;
+
+      for (let n = 0; n < N; n++) {
+        const neg_n = (N - n) % N;
+
+        const idx = m * N + n;
+        const neg_idx = neg_m * N + neg_n;
+
+        const r1 = this.h0Real[idx];
+        const i1 = this.h0Imag[idx];
+
+        const r2 = this.h0Real[neg_idx];
+        const i2 = this.h0Imag[neg_idx];
+
+        const om = this.omega[idx] * t;
+        const cosW = Math.cos(om);
+        const sinW = Math.sin(om);
+
+        // Tessendorf
+        this.hReal[idx] = (r1 + r2) * cosW - (i1 + i2) * sinW;
+        this.hImag[idx] = (r1 - r2) * sinW + (i1 - i2) * cosW;
+      }
+    }
+  }
+}
