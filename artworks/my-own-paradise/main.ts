@@ -29,6 +29,9 @@ import {
 import { setupArtworkViewer } from "../../src/components/viewer-shell.ts";
 import { FFTOcean } from "./FFTOcean.ts";
 import { renderDebugCanvas } from "../../src/helpers/renderDebugCanvas.ts";
+import oceanVertexShader from "./ocean_vertex.glsl?raw";
+import oceanFragmentShader from "./ocean_fragment.glsl?raw";
+import { ShowInspector } from "@babylonjs/inspector";
 
 // 공통 뷰어 셸 (헤더, 도슨트 명판, 전체화면 버튼)
 setupArtworkViewer("my-own-paradise");
@@ -102,15 +105,7 @@ export function createFFTOceanScene(
     scene,
   );
   sunLight.intensity = 1.6;
-  sunLight.diffuse = new Color3(1.0, 0.92, 0.8);
-
-  const hemiLight = new HemisphericLight(
-    "hemiLight",
-    new Vector3(0, 1, 0),
-    scene,
-  );
-  hemiLight.intensity = 0.45;
-  hemiLight.groundColor = new Color3(0.02, 0.05, 0.1);
+  sunLight.diffuse = new Color3(1.5, 1.5, 1.5);
 
   // 3. 바다 평면 메시
   const meshSize = 140;
@@ -120,7 +115,7 @@ export function createFFTOceanScene(
       width: meshSize,
       height: meshSize,
       updatable: true,
-      subdivisions: 200, // 버텍스 셰이더 변위를 위한 정밀 격자
+      subdivisions: 256, // 버텍스 셰이더 변위를 위한 정밀 격자
     },
     scene,
   );
@@ -130,113 +125,15 @@ export function createFFTOceanScene(
     gridSize: 256,
     domainLength: 256,
     windDirection: new Vector2(1, 0),
-    amplitude: 300,
-    windSpeed: 2000,
+    amplitude: 120,
+    windSpeed: 600,
   });
 
   // --------------------------------------------------------------------------
   // [displacementTexture 변위 & slopeX/ZTexture 노멀 매핑 셰이더]
   // --------------------------------------------------------------------------
-  Effect.ShadersStore["oceanVertexShader"] = `
-    precision highp float;
-
-    // Attributes
-    attribute vec3 position;
-    attribute vec2 uv;
-
-    // Uniforms
-    uniform mat4 world;
-    uniform mat4 worldViewProjection;
-
-    uniform sampler2D displacementMap;
-    uniform float uvScale;
-
-    // Varyings
-    varying vec3 vWorldPos;
-    varying vec2 vTiledUV;
-
-    void main() {
-      // UV 스케일을 적용하여 고밀도 타일링
-      vec2 tiledUV = uv * uvScale;
-      vTiledUV = tiledUV;
-
-      // 256x256 인라인 Bilinear 필터링으로 부드러운 수직 변위 샘플링
-      vec2 texSize = vec2(256.0, 256.0);
-      vec2 texelSize = 1.0 / texSize;
-      vec2 coord = tiledUV * texSize - 0.5;
-      vec2 f = fract(coord);
-      vec2 baseUV = (floor(coord) + 0.5) * texelSize;
-
-      float h00 = texture2D(displacementMap, baseUV).r;
-      float h10 = texture2D(displacementMap, baseUV + vec2(texelSize.x, 0.0)).r;
-      float h01 = texture2D(displacementMap, baseUV + vec2(0.0, texelSize.y)).r;
-      float h11 = texture2D(displacementMap, baseUV + texelSize).r;
-      float height = mix(mix(h00, h10, f.x), mix(h01, h11, f.x), f.y);
-
-      // displacementTexture를 통한 버텍스 수직(y) 변위 적용
-      vec3 pos = position;
-      pos.y += height;
-
-      vec4 worldPos = world * vec4(pos, 1.0);
-      vWorldPos = worldPos.xyz;
-      gl_Position = worldViewProjection * vec4(pos, 1.0);
-    }
-  `;
-
-  Effect.ShadersStore["oceanFragmentShader"] = `
-    precision highp float;
-
-    varying vec3 vWorldPos;
-    varying vec2 vTiledUV;
-
-    uniform sampler2D slopeXMap;
-    uniform sampler2D slopeZMap;
-    uniform float uvScale;
-    uniform float domainLength;
-    uniform float meshSize;
-    uniform vec3 cameraPosition;
-    uniform vec3 sunDirection;
-    uniform vec3 sunColor;
-
-    void main() {
-      // 1. slopeX, slopeZ 텍스처 인라인 Bilinear 샘플링
-      vec2 texSize = vec2(256.0, 256.0);
-      vec2 texelSize = 1.0 / texSize;
-      vec2 coord = vTiledUV * texSize - 0.5;
-      vec2 f = fract(coord);
-      vec2 baseUV = (floor(coord) + 0.5) * texelSize;
-
-      float sx00 = texture2D(slopeXMap, baseUV).r;
-      float sx10 = texture2D(slopeXMap, baseUV + vec2(texelSize.x, 0.0)).r;
-      float sx01 = texture2D(slopeXMap, baseUV + vec2(0.0, texelSize.y)).r;
-      float sx11 = texture2D(slopeXMap, baseUV + texelSize).r;
-      float slopeX = mix(mix(sx00, sx10, f.x), mix(sx01, sx11, f.x), f.y);
-
-      float sz00 = texture2D(slopeZMap, baseUV).r;
-      float sz10 = texture2D(slopeZMap, baseUV + vec2(texelSize.x, 0.0)).r;
-      float sz01 = texture2D(slopeZMap, baseUV + vec2(0.0, texelSize.y)).r;
-      float sz11 = texture2D(slopeZMap, baseUV + texelSize).r;
-      float slopeZ = mix(mix(sz00, sz10, f.x), mix(sz01, sz11, f.x), f.y);
-
-      // 2. 타일링 비율에 맞춘 물리적 노멀 벡터 복원
-      float slopeScale = uvScale * (domainLength / meshSize);
-      vec3 normal = normalize(vec3(-slopeX * slopeScale, 1.0, -slopeZ * slopeScale));
-
-      // 3. 노멀 매핑 시각화를 위한 조명 연산 (기본 Diffuse + Specular)
-      vec3 L = normalize(sunDirection);
-      vec3 V = normalize(cameraPosition - vWorldPos);
-      vec3 H = normalize(L + V);
-
-      float diff = max(0.0, dot(normal, L));
-      float spec = pow(max(0.0, dot(normal, H)), 64.0);
-
-      vec3 oceanColor = vec3(0.04, 0.22, 0.40);
-      vec3 ambient = vec3(0.02, 0.07, 0.14);
-      vec3 color = ambient + oceanColor * (0.3 + 0.7 * diff) + sunColor * spec * 0.8;
-
-      gl_FragColor = vec4(color, 1.0);
-    }
-  `;
+  Effect.ShadersStore["oceanVertexShader"] = oceanVertexShader;
+  Effect.ShadersStore["oceanFragmentShader"] = oceanFragmentShader;
 
   const oceanMaterial = new ShaderMaterial(
     "oceanShader",
@@ -262,7 +159,7 @@ export function createFFTOceanScene(
   );
 
   // 4.0: 4x4 타일링 (16개 타일)으로 텍셀 밀도를 대폭 올려 선명한 디테일 생성
-  const uvScale = 3.0;
+  const uvScale = 5.0;
 
   oceanMaterial.backFaceCulling = false;
   oceanMaterial.setTexture("displacementMap", ocean.displacementTexture);
@@ -306,6 +203,8 @@ export function createFFTOceanScene(
     ocean.update(t);
     oceanMaterial.setVector3("cameraPosition", camera.position);
   });
+
+  // ShowInspector(scene);
 
   return scene;
 }
