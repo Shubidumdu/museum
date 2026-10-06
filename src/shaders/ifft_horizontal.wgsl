@@ -6,12 +6,11 @@ struct Uniforms {
 @group(0) @binding(0)
 var<uniform> uniforms: Uniforms;
 @group(0) @binding(1)
-var<storage, read> inputSpectrum: array<vec2<f32>>;
+var<storage, read> inputSpectrum: array<vec4<f32>>;
 @group(0) @binding(2)
 var outputTex: texture_storage_2d<rgba32float, write>;
 
-var<workgroup> s_real: array<f32, 256>;
-var<workgroup> s_imag: array<f32, 256>;
+var<workgroup> s_val: array<vec4<f32>, 256>;
 
 const PI: f32 = 3.141592653589793;
 
@@ -20,16 +19,15 @@ fn main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid
     let tid = lid.x;
     let row = wid.x;
 
-    // Bit-reversal 인덱스로 공유 메모리에 적재
+    // Bit-reversal 인덱스로 공유 메모리에 적재 (vec4 채널 전체)
     let revIdx = reverseBits(tid) >> (32u - uniforms.log2N);
     let val = inputSpectrum[row * uniforms.N + tid];
-    s_real[revIdx] = val.x;
-    s_imag[revIdx] = val.y;
+    s_val[revIdx] = val;
 
     workgroupBarrier();
 
-    // Cooley-Tukey Butterfly
-    for(var s: u32 = 1u; s <= uniforms.log2N; s = s + 1u) {
+    // Cooley-Tukey Butterfly (4채널 / 2개 복소수 동시 연산)
+    for (var s: u32 = 1u; s <= uniforms.log2N; s = s + 1u) {
         let m = 1u << s;
         let halfM = m >> 1u;
         let k = tid % halfM;
@@ -42,21 +40,24 @@ fn main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid
             let cosW = cos(angle);
             let sinW = sin(angle);
 
-            let uR = s_real[uIdx];
-            let uI = s_imag[uIdx];
-            let vR = s_real[vIdx];
-            let vI = s_imag[vIdx];
+            let u = s_val[uIdx];
+            let v = s_val[vIdx];
 
-            let tR = vR * cosW - vI * sinW;
-            let tI = vR * sinW + vI * cosW;
+            // 1번째 복소 신호 (xy: real, imag)
+            let t1_R = v.x * cosW - v.y * sinW;
+            let t1_I = v.x * sinW + v.y * cosW;
 
-            s_real[uIdx] = uR + tR;
-            s_imag[uIdx] = uI + tI;
-            s_real[vIdx] = uR - tR;
-            s_imag[vIdx] = uI - tI;
+            // 2번째 복소 신호 (zw: real, imag)
+            let t2_R = v.z * cosW - v.w * sinW;
+            let t2_I = v.z * sinW + v.w * cosW;
+
+            let t = vec4<f32>(t1_R, t1_I, t2_R, t2_I);
+
+            s_val[uIdx] = u + t;
+            s_val[vIdx] = u - t;
         }
         workgroupBarrier();
     }
 
-    textureStore(outputTex, vec2<u32>(tid, row), vec4<f32>(s_real[tid], s_imag[tid], 0.0, 1.0));
+    textureStore(outputTex, vec2<u32>(tid, row), s_val[tid]);
 }

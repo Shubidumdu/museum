@@ -3,8 +3,7 @@ precision highp float;
 varying vec3 vWorldPos;
 varying vec2 vTiledUV;
 
-uniform sampler2D slopeXMap;
-uniform sampler2D slopeZMap;
+uniform sampler2D slopeMap;
 uniform float uvScale;
 uniform float domainLength;
 uniform float meshSize;
@@ -13,9 +12,10 @@ uniform vec3 sunDirection;
 uniform vec3 sunColor;
 
 void main() {
-    // 1. 단순 slopeX, slopeZ 샘플링 (bilinear 필터링 없이 직접 샘플링)
-    float slopeX = texture2D(slopeXMap, vTiledUV).r;
-    float slopeZ = texture2D(slopeZMap, vTiledUV).r;
+    // 1. 단일 slopeMap 샘플링 (R: slopeX, G: slopeZ)
+    vec2 slopes = texture2D(slopeMap, vTiledUV).rg;
+    float slopeX = slopes.r;
+    float slopeZ = slopes.g;
 
     // 2. 물리적 법선 벡터 복원
     float slopeScale = uvScale * (domainLength / meshSize);

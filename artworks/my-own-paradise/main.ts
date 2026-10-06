@@ -57,6 +57,7 @@ async function initializeOceanApp() {
   const engine = new WebGPUEngine(canvas, {
     antialias: true,
     powerPreference: "high-performance",
+    enableGPUDebugMarkers: true,
   });
   await engine.initAsync();
 
@@ -154,13 +155,7 @@ export function createFFTOceanScene(
         "sunColor",
         "choppiness",
       ],
-      samplers: [
-        "displacementMap",
-        "displacementXMap",
-        "displacementZMap",
-        "slopeXMap",
-        "slopeZMap",
-      ],
+      samplers: ["displacementMap", "slopeMap"],
     },
   );
 
@@ -169,10 +164,7 @@ export function createFFTOceanScene(
 
   oceanMaterial.backFaceCulling = false;
   oceanMaterial.setTexture("displacementMap", ocean.displacementTexture);
-  oceanMaterial.setTexture("displacementXMap", ocean.displacementXTexture);
-  oceanMaterial.setTexture("displacementZMap", ocean.displacementZTexture);
-  oceanMaterial.setTexture("slopeXMap", ocean.slopeXTexture);
-  oceanMaterial.setTexture("slopeZMap", ocean.slopeZTexture);
+  oceanMaterial.setTexture("slopeMap", ocean.slopeTexture);
   oceanMaterial.setFloat("uvScale", uvScale);
   oceanMaterial.setFloat("choppiness", ocean.choppiness);
   oceanMaterial.setFloat("domainLength", ocean.L);
@@ -188,20 +180,16 @@ export function createFFTOceanScene(
 
   // 실시간 텍스처 디버거 호출 (드래그 가능한 플로팅 오버레이 캔버스)
   renderDebugCanvas(ocean.displacementTexture, {
-    title: "Ocean Displacement (Height)",
+    title: "Ocean Displacement (R:Dx, G:Dz, B:Dy)",
     size: 256,
+    opaqueAlpha: true,
   });
-  renderDebugCanvas(ocean.slopeXTexture, {
-    title: "Ocean Slope X (dH/dx)",
-    size: 256,
-    initialX: 24,
-    initialY: 24,
-  });
-  renderDebugCanvas(ocean.slopeZTexture, {
-    title: "Ocean Slope Z (dH/dz)",
+  renderDebugCanvas(ocean.slopeTexture, {
+    title: "Ocean Slope (R:SlopeX, G:SlopeZ)",
     size: 256,
     initialX: 24,
     initialY: 340,
+    opaqueAlpha: true,
   });
 
   // 매 프레임 시간 전파 및 IFFT 연산 수행

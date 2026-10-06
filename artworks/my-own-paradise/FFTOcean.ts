@@ -34,25 +34,16 @@ export class FFTOcean {
   hReal: Float32Array;
   hImag: Float32Array;
 
-  packedSpectrum: Float32Array;
-  packedSlopeX: Float32Array;
-  packedSlopeZ: Float32Array;
-  packedDispX: Float32Array;
-  packedDispZ: Float32Array;
+  packedDisplacement: Float32Array; // [real(Dx+i*Dz), imag(Dx+i*Dz), real(h), imag(h)]
+  packedSlope: Float32Array; // [real(Sx+i*Sz), imag(Sx+i*Sz), 0, 0]
 
   ifftHelper: IFFT2D;
 
-  spectrumStorageBuffer: StorageBuffer;
-  slopeXBuffer: StorageBuffer;
-  slopeZBuffer: StorageBuffer;
-  dispXBuffer: StorageBuffer;
-  dispZBuffer: StorageBuffer;
+  dispStorageBuffer: StorageBuffer;
+  slopeStorageBuffer: StorageBuffer;
 
-  displacementTexture: RenderTargetTexture;
-  displacementXTexture: RenderTargetTexture;
-  displacementZTexture: RenderTargetTexture;
-  slopeXTexture: RenderTargetTexture;
-  slopeZTexture: RenderTargetTexture;
+  displacementTexture: RenderTargetTexture; // R: Dx, G: Dz, B: Dy(h), A: 0
+  slopeTexture: RenderTargetTexture; // R: SlopeX, G: SlopeZ, B: 0, A: 0
 
   constructor(
     scene: Scene,
@@ -85,35 +76,22 @@ export class FFTOcean {
     this.hImag = new Float32Array(totalSize);
     this.omega = new Float32Array(totalSize);
 
-    this.packedSpectrum = new Float32Array(totalSize * 2); // 256 * 256 * 2
-    this.packedSlopeX = new Float32Array(totalSize * 2); // 256 * 256 * 2
-    this.packedSlopeZ = new Float32Array(totalSize * 2); // 256 * 256 * 2
-    this.packedDispX = new Float32Array(totalSize * 2); // 256 * 256 * 2 (Dx)
-    this.packedDispZ = new Float32Array(totalSize * 2); // 256 * 256 * 2 (Dz)
+    // 4채널(vec4) 패킹 버퍼 할당
+    this.packedDisplacement = new Float32Array(totalSize * 4); // [real(Dx+i*Dz), imag(Dx+i*Dz), real(h), imag(h)]
+    this.packedSlope = new Float32Array(totalSize * 4); // [real(Sx+i*Sz), imag(Sx+i*Sz), 0, 0]
 
-    this.spectrumStorageBuffer = new StorageBuffer(
+    this.dispStorageBuffer = new StorageBuffer(
       this.engine,
-      this.packedSpectrum.byteLength,
+      this.packedDisplacement.byteLength,
     );
-    this.slopeXBuffer = new StorageBuffer(
+    this.slopeStorageBuffer = new StorageBuffer(
       this.engine,
-      this.packedSlopeX.byteLength,
-    );
-    this.slopeZBuffer = new StorageBuffer(
-      this.engine,
-      this.packedSlopeZ.byteLength,
-    );
-    this.dispXBuffer = new StorageBuffer(
-      this.engine,
-      this.packedDispX.byteLength,
-    );
-    this.dispZBuffer = new StorageBuffer(
-      this.engine,
-      this.packedDispZ.byteLength,
+      this.packedSlope.byteLength,
     );
 
     this.ifftHelper = new IFFT2D(scene, engine, this.N);
 
+    // 4채널 통합 변위 텍스처 (R: Dx, G: Dz, B: Dy, A: 0)
     this.displacementTexture = new RenderTargetTexture(
       "ocean_displacement",
       this.N,
@@ -129,80 +107,22 @@ export class FFTOcean {
       },
     );
 
-    this.displacementXTexture = new RenderTargetTexture(
-      "ocean_displacement_x",
-      this.N,
-      scene,
-      {
-        generateMipMaps: false,
-        type: Constants.TEXTURETYPE_FLOAT,
-        format: Constants.TEXTUREFORMAT_RGBA,
-        samplingMode: Constants.TEXTURE_NEAREST_SAMPLINGMODE,
-        generateDepthBuffer: false,
-        generateStencilBuffer: false,
-        creationFlags: Constants.TEXTURE_CREATIONFLAG_STORAGE,
-      },
-    );
-
-    this.displacementZTexture = new RenderTargetTexture(
-      "ocean_displacement_z",
-      this.N,
-      scene,
-      {
-        generateMipMaps: false,
-        type: Constants.TEXTURETYPE_FLOAT,
-        format: Constants.TEXTUREFORMAT_RGBA,
-        samplingMode: Constants.TEXTURE_NEAREST_SAMPLINGMODE,
-        generateDepthBuffer: false,
-        generateStencilBuffer: false,
-        creationFlags: Constants.TEXTURE_CREATIONFLAG_STORAGE,
-      },
-    );
-
-    this.slopeXTexture = new RenderTargetTexture(
-      "ocean_slope_x",
-      this.N,
-      scene,
-      {
-        generateMipMaps: false,
-        type: Constants.TEXTURETYPE_FLOAT,
-        format: Constants.TEXTUREFORMAT_RGBA,
-        samplingMode: Constants.TEXTURE_NEAREST_SAMPLINGMODE,
-        generateDepthBuffer: false,
-        generateStencilBuffer: false,
-        creationFlags: Constants.TEXTURE_CREATIONFLAG_STORAGE,
-      },
-    );
-
-    this.slopeZTexture = new RenderTargetTexture(
-      "ocean_slope_z",
-      this.N,
-      scene,
-      {
-        generateMipMaps: false,
-        type: Constants.TEXTURETYPE_FLOAT,
-        format: Constants.TEXTUREFORMAT_RGBA,
-        samplingMode: Constants.TEXTURE_NEAREST_SAMPLINGMODE,
-        generateDepthBuffer: false,
-        generateStencilBuffer: false,
-        creationFlags: Constants.TEXTURE_CREATIONFLAG_STORAGE,
-      },
-    );
+    // 4채널 통합 기울기 텍스처 (R: SlopeX, G: SlopeZ, B: 0, A: 0)
+    this.slopeTexture = new RenderTargetTexture("ocean_slope", this.N, scene, {
+      generateMipMaps: false,
+      type: Constants.TEXTURETYPE_FLOAT,
+      format: Constants.TEXTUREFORMAT_RGBA,
+      samplingMode: Constants.TEXTURE_NEAREST_SAMPLINGMODE,
+      generateDepthBuffer: false,
+      generateStencilBuffer: false,
+      creationFlags: Constants.TEXTURE_CREATIONFLAG_STORAGE,
+    });
 
     this.displacementTexture.wrapU = Constants.TEXTURE_WRAP_ADDRESSMODE;
     this.displacementTexture.wrapV = Constants.TEXTURE_WRAP_ADDRESSMODE;
 
-    this.displacementXTexture.wrapU = Constants.TEXTURE_WRAP_ADDRESSMODE;
-    this.displacementXTexture.wrapV = Constants.TEXTURE_WRAP_ADDRESSMODE;
-
-    this.displacementZTexture.wrapU = Constants.TEXTURE_WRAP_ADDRESSMODE;
-    this.displacementZTexture.wrapV = Constants.TEXTURE_WRAP_ADDRESSMODE;
-
-    this.slopeXTexture.wrapU = Constants.TEXTURE_WRAP_ADDRESSMODE;
-    this.slopeXTexture.wrapV = Constants.TEXTURE_WRAP_ADDRESSMODE;
-
-    this.slopeZTexture.wrapU = Constants.TEXTURE_WRAP_ADDRESSMODE;
-    this.slopeZTexture.wrapV = Constants.TEXTURE_WRAP_ADDRESSMODE;
+    this.slopeTexture.wrapU = Constants.TEXTURE_WRAP_ADDRESSMODE;
+    this.slopeTexture.wrapV = Constants.TEXTURE_WRAP_ADDRESSMODE;
 
     this.initSpectrum();
   }
@@ -280,58 +200,55 @@ export class FFTOcean {
       const h_r = this.hReal[i];
       const h_i = this.hImag[i];
 
-      this.packedSpectrum[i * 2] = h_r;
-      this.packedSpectrum[i * 2 + 1] = h_i;
-
-      // 🌟 추가: kx, kz 방향의 주파수 미분 (i * k * h)
       const kx = this.kx[i];
       const kz = this.kz[i];
 
-      // X축 편미분 주파수 (packedSlopeX 버퍼에 [real, imag] 순서로 저장)
-      this.packedSlopeX[i * 2] = -kx * h_i;
-      this.packedSlopeX[i * 2 + 1] = kx * h_r;
+      const idx4 = i * 4;
 
-      // Z축 편미분 주파수 (packedSlopeZ 버퍼에 [real, imag] 순서로 저장)
-      this.packedSlopeZ[i * 2] = -kz * h_i;
-      this.packedSlopeZ[i * 2 + 1] = kz * h_r;
-
-      // 🌟 추가: 수평 변위 주파수 (Choppiness: -i * (k / |k|) * h)
-      // -i * (h_r + i * h_i) = h_i - i * h_r
+      // 1. 수평 변위(Dx, Dz) 및 수직 높이(Dy) 패킹
+      // 복소 결합: D_xz = Dx + i * Dz
+      // IFFT 후: R 채널 = Dx, G 채널 = Dz, B 채널 = Dy (h_r)
       const kLenSq = kx * kx + kz * kz;
       if (kLenSq > 1e-10) {
         const invK = 1.0 / Math.sqrt(kLenSq);
         const normKx = kx * invK;
         const normKz = kz * invK;
 
-        this.packedDispX[i * 2] = h_i * normKx;
-        this.packedDispX[i * 2 + 1] = -h_r * normKx;
-
-        this.packedDispZ[i * 2] = h_i * normKz;
-        this.packedDispZ[i * 2 + 1] = -h_r * normKz;
+        // D_xz = (Dx_real - Dz_imag) + i*(Dx_imag + Dz_real)
+        // Dx_real = h_i * normKx, Dx_imag = -h_r * normKx
+        // Dz_real = h_i * normKz, Dz_imag = -h_r * normKz
+        // D_xz_real = h_i * normKx - (-h_r * normKz) = h_i * normKx + h_r * normKz
+        // D_xz_imag = -h_r * normKx + h_i * normKz = h_i * normKz - h_r * normKx
+        this.packedDisplacement[idx4] = h_i * normKx + h_r * normKz;
+        this.packedDisplacement[idx4 + 1] = h_i * normKz - h_r * normKx;
       } else {
-        this.packedDispX[i * 2] = 0.0;
-        this.packedDispX[i * 2 + 1] = 0.0;
-        this.packedDispZ[i * 2] = 0.0;
-        this.packedDispZ[i * 2 + 1] = 0.0;
+        this.packedDisplacement[idx4] = 0.0;
+        this.packedDisplacement[idx4 + 1] = 0.0;
       }
+      // 수직 높이 h (Real, Imag) -> IFFT 후 B 채널에 h_r 기록
+      this.packedDisplacement[idx4 + 2] = h_r;
+      this.packedDisplacement[idx4 + 3] = h_i;
+
+      // 2. 기울기(SlopeX, SlopeZ) 패킹
+      // 복소 결합: S_comb = SlopeX + i * SlopeZ
+      // IFFT 후: R 채널 = SlopeX, G 채널 = SlopeZ
+      // Sx_real = -kx * h_i, Sx_imag = kx * h_r
+      // Sz_real = -kz * h_i, Sz_imag = kz * h_r
+      // S_comb_real = -kx * h_i - (kz * h_r)
+      // S_comb_imag = kx * h_r + (-kz * h_i)
+      this.packedSlope[idx4] = -kx * h_i - kz * h_r;
+      this.packedSlope[idx4 + 1] = kx * h_r - kz * h_i;
+      this.packedSlope[idx4 + 2] = 0.0;
+      this.packedSlope[idx4 + 3] = 0.0;
     }
 
     // 3. GPU StorageBuffer로 데이터 전송
-    this.spectrumStorageBuffer.update(this.packedSpectrum);
-    this.slopeXBuffer.update(this.packedSlopeX);
-    this.slopeZBuffer.update(this.packedSlopeZ);
-    this.dispXBuffer.update(this.packedDispX);
-    this.dispZBuffer.update(this.packedDispZ);
+    this.dispStorageBuffer.update(this.packedDisplacement);
+    this.slopeStorageBuffer.update(this.packedSlope);
 
-    // 4. WebGPU 단 2패스 컴퓨트 셰이더로 IFFT 변환 실행!
-    this.ifftHelper.execute(
-      this.spectrumStorageBuffer,
-      this.displacementTexture,
-    );
-    this.ifftHelper.execute(this.slopeXBuffer, this.slopeXTexture);
-    this.ifftHelper.execute(this.slopeZBuffer, this.slopeZTexture);
-    this.ifftHelper.execute(this.dispXBuffer, this.displacementXTexture);
-    this.ifftHelper.execute(this.dispZBuffer, this.displacementZTexture);
+    // 4. WebGPU 단 2번의 IFFT 변환 실행! (Displacement 1회 + Slope 1회)
+    this.ifftHelper.execute(this.dispStorageBuffer, this.displacementTexture);
+    this.ifftHelper.execute(this.slopeStorageBuffer, this.slopeTexture);
   }
 
   updateSpectrum(t: number) {

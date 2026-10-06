@@ -23,6 +23,12 @@ export interface RenderDebugCanvasOptions {
   initialY?: number;
   /** 바빌론 Scene 인스턴스 (생략 시 texture.getScene() 사용) */
   scene?: Scene;
+  /**
+   * RGBA 모드에서 텍스처의 실제 알파(A) 채널을 무시하고 불투명(a = 1.0, 255)으로 고정할지 여부 (기본값: false)
+   */
+  opaqueAlpha?: boolean;
+  /** opaqueAlpha의 별칭 (기본값: false) */
+  forceAlphaOne?: boolean;
 }
 
 export interface DebugCanvasHandle {
@@ -36,6 +42,8 @@ export interface DebugCanvasHandle {
   setChannel: (channel: ChannelMode) => void;
   /** sRGB 변환 활성화 여부 설정 */
   setSRGB: (enabled: boolean) => void;
+  /** 알파 1.0(불투명) 고정 여부 설정 */
+  setOpaqueAlpha: (enabled: boolean) => void;
   /** 최상위 컨테이너 요소 */
   container: HTMLDivElement;
   /** 텍스처 렌더링 캔버스 */
@@ -89,6 +97,7 @@ export function renderDebugCanvas(
   const size = options?.size ?? 256;
   let currentChannel: ChannelMode = options?.channel ?? "rgba";
   let sRGBEnabled = options?.sRGB ?? false;
+  let opaqueAlpha = options?.opaqueAlpha ?? options?.forceAlphaOne ?? false;
 
   const textureName = texture.name || "Texture";
   const titleText = options?.title ?? `${textureName}`;
@@ -251,6 +260,11 @@ export function renderDebugCanvas(
     srgbBtn.style.color = sRGBEnabled ? "#ffffff" : "#8b949e";
     srgbBtn.style.borderColor = sRGBEnabled ? "#2ea043" : "#2a364a";
     srgbBtn.textContent = sRGBEnabled ? "sRGB: ON" : "sRGB: OFF";
+
+    alphaBtn.style.backgroundColor = opaqueAlpha ? "#8957e5" : "#161d2b";
+    alphaBtn.style.color = opaqueAlpha ? "#ffffff" : "#8b949e";
+    alphaBtn.style.borderColor = opaqueAlpha ? "#a371f7" : "#2a364a";
+    alphaBtn.textContent = opaqueAlpha ? "A: 1.0" : "A: Raw";
   };
 
   channels.forEach((mode) => {
@@ -277,6 +291,24 @@ export function renderDebugCanvas(
     channelButtons.push({ mode, btn });
   });
 
+  const alphaBtn = document.createElement("button");
+  alphaBtn.title = "알파(A) 채널을 1.0(불투명)으로 고정 전환 (ON / OFF)";
+  Object.assign(alphaBtn.style, {
+    border: "1px solid #2a364a",
+    borderRadius: "4px",
+    fontSize: "9px",
+    padding: "2px 6px",
+    cursor: "pointer",
+    fontFamily: "inherit",
+    transition: "all 0.15s ease",
+  });
+
+  alphaBtn.addEventListener("click", () => {
+    opaqueAlpha = !opaqueAlpha;
+    updateToolbarButtons();
+    renderCachedPixels();
+  });
+
   const srgbBtn = document.createElement("button");
   srgbBtn.title = "sRGB 감마 보정 전환 (ON / OFF)";
   Object.assign(srgbBtn.style, {
@@ -295,8 +327,17 @@ export function renderDebugCanvas(
     renderCachedPixels();
   });
 
+  const toggleGroup = document.createElement("div");
+  Object.assign(toggleGroup.style, {
+    display: "flex",
+    alignItems: "center",
+    gap: "3px",
+  });
+  toggleGroup.appendChild(alphaBtn);
+  toggleGroup.appendChild(srgbBtn);
+
   toolbar.appendChild(channelGroup);
-  toolbar.appendChild(srgbBtn);
+  toolbar.appendChild(toggleGroup);
   container.appendChild(toolbar);
 
   // 4. 디버그 캔버스 및 바디 구성
@@ -432,7 +473,7 @@ export function renderDebugCanvas(
           imgData.data[px + 0] = floatToByte(rRaw, sRGBEnabled);
           imgData.data[px + 1] = floatToByte(gRaw, sRGBEnabled);
           imgData.data[px + 2] = floatToByte(bRaw, sRGBEnabled);
-          imgData.data[px + 3] = floatToByte(aRaw, false);
+          imgData.data[px + 3] = opaqueAlpha ? 255 : floatToByte(aRaw, false);
         } else if (currentChannel === "r") {
           const v = floatToByte(rRaw, sRGBEnabled);
           imgData.data[px + 0] = v;
@@ -474,7 +515,7 @@ export function renderDebugCanvas(
           imgData.data[px + 0] = uint8ToByte(rRaw, sRGBEnabled);
           imgData.data[px + 1] = uint8ToByte(gRaw, sRGBEnabled);
           imgData.data[px + 2] = uint8ToByte(bRaw, sRGBEnabled);
-          imgData.data[px + 3] = aRaw;
+          imgData.data[px + 3] = opaqueAlpha ? 255 : aRaw;
         } else if (currentChannel === "r") {
           const v = uint8ToByte(rRaw, sRGBEnabled);
           imgData.data[px + 0] = v;
@@ -578,12 +619,19 @@ export function renderDebugCanvas(
     renderCachedPixels();
   };
 
+  const setOpaqueAlpha = (enabled: boolean) => {
+    opaqueAlpha = enabled;
+    updateToolbarButtons();
+    renderCachedPixels();
+  };
+
   return {
     update,
     dispose,
     setVisible,
     setChannel,
     setSRGB,
+    setOpaqueAlpha,
     container,
     canvas,
   };

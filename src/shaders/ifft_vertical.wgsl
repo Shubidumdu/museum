@@ -10,8 +10,7 @@ var inputTex: texture_storage_2d<rgba32float, read>;
 @group(0) @binding(2)
 var outputTex: texture_storage_2d<rgba32float, write>;
 
-var<workgroup> s_real: array<f32, 256>;
-var<workgroup> s_imag: array<f32, 256>;
+var<workgroup> s_val: array<vec4<f32>, 256>;
 
 const PI: f32 = 3.141592653589793;
 
@@ -22,12 +21,11 @@ fn main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid
 
     let revIdx = reverseBits(tid) >> (32u - uniforms.log2N);
     let val = textureLoad(inputTex, vec2<u32>(col, tid));
-    s_real[revIdx] = val.r;
-    s_imag[revIdx] = val.g;
+    s_val[revIdx] = val;
 
     workgroupBarrier();
 
-    for(var s: u32 = 1u; s <= uniforms.log2N; s = s + 1u) {
+    for (var s: u32 = 1u; s <= uniforms.log2N; s = s + 1u) {
         let m = 1u << s;
         let halfM = m >> 1u;
         let k = tid % halfM;
@@ -40,18 +38,21 @@ fn main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid
             let cosW = cos(angle);
             let sinW = sin(angle);
 
-            let uR = s_real[uIdx];
-            let uI = s_imag[uIdx];
-            let vR = s_real[vIdx];
-            let vI = s_imag[vIdx];
+            let u = s_val[uIdx];
+            let v = s_val[vIdx];
 
-            let tR = vR * cosW - vI * sinW;
-            let tI = vR * sinW + vI * cosW;
+            // 1번째 복소 신호 (xy)
+            let t1_R = v.x * cosW - v.y * sinW;
+            let t1_I = v.x * sinW + v.y * cosW;
 
-            s_real[uIdx] = uR + tR;
-            s_imag[uIdx] = uI + tI;
-            s_real[vIdx] = uR - tR;
-            s_imag[vIdx] = uI - tI;
+            // 2번째 복소 신호 (zw)
+            let t2_R = v.z * cosW - v.w * sinW;
+            let t2_I = v.z * sinW + v.w * cosW;
+
+            let t = vec4<f32>(t1_R, t1_I, t2_R, t2_I);
+
+            s_val[uIdx] = u + t;
+            s_val[vIdx] = u - t;
         }
         workgroupBarrier();
     }
@@ -62,9 +63,8 @@ fn main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid
     let sign = select(1.0, -1.0, ((x + y) & 1u) == 1u);
     let normFactor = f32(uniforms.N * uniforms.N);
 
-    let finalHeight = (s_real[tid] * sign) / normFactor;
-    let finalImag = (s_imag[tid] * sign) / normFactor; // 검증용 (0에 수렴해야 함)
+    let finalVal = (s_val[tid] * sign) / normFactor;
 
-    // R: 실수 수면 높이, G: 잔여 허수부, B: 0, A: 1
-    textureStore(outputTex, vec2<u32>(col, tid), vec4<f32>(finalHeight, finalImag, 0.0, 1.0));
+    // R: 1번째 실수, G: 1번째 허수, B: 2번째 실수, A: 2번째 허수
+    textureStore(outputTex, vec2<u32>(col, tid), finalVal);
 }
