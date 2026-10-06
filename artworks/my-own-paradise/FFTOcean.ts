@@ -36,14 +36,17 @@ export class FFTOcean {
 
   packedDisplacement: Float32Array; // [real(Dx+i*Dz), imag(Dx+i*Dz), real(h), imag(h)]
   packedSlope: Float32Array; // [real(Sx+i*Sz), imag(Sx+i*Sz), 0, 0]
+  packedFoam: Float32Array; // [real(Jxx+i*Jzz), imag(Jxx+i*Jzz), real(Jxz), imag(Jxz)]
 
   ifftHelper: IFFT2D;
 
   dispStorageBuffer: StorageBuffer;
   slopeStorageBuffer: StorageBuffer;
+  foamStorageBuffer: StorageBuffer;
 
   displacementTexture: RenderTargetTexture; // R: Dx, G: Dz, B: Dy(h), A: 0
   slopeTexture: RenderTargetTexture; // R: SlopeX, G: SlopeZ, B: 0, A: 0
+  foamTexture: RenderTargetTexture; // R: Jxx, G: Jzz, B: Jxz, A: 0
 
   constructor(
     scene: Scene,
@@ -79,6 +82,7 @@ export class FFTOcean {
     // 4채널(vec4) 패킹 버퍼 할당
     this.packedDisplacement = new Float32Array(totalSize * 4); // [real(Dx+i*Dz), imag(Dx+i*Dz), real(h), imag(h)]
     this.packedSlope = new Float32Array(totalSize * 4); // [real(Sx+i*Sz), imag(Sx+i*Sz), 0, 0]
+    this.packedFoam = new Float32Array(totalSize * 4); // [real(Jxx+i*Jzz), imag(Jxx+i*Jzz), real(Jxz), imag(Jxz)]
 
     this.dispStorageBuffer = new StorageBuffer(
       this.engine,
@@ -87,6 +91,10 @@ export class FFTOcean {
     this.slopeStorageBuffer = new StorageBuffer(
       this.engine,
       this.packedSlope.byteLength,
+    );
+    this.foamStorageBuffer = new StorageBuffer(
+      this.engine,
+      this.packedFoam.byteLength,
     );
 
     this.ifftHelper = new IFFT2D(scene, engine, this.N);
@@ -118,11 +126,25 @@ export class FFTOcean {
       creationFlags: Constants.TEXTURE_CREATIONFLAG_STORAGE,
     });
 
+    // 4채널 통합 Foam 텍스처 (R: Jxx, G: Jzz, B: Jxz, A: 0)
+    this.foamTexture = new RenderTargetTexture("ocean_foam", this.N, scene, {
+      generateMipMaps: false,
+      type: Constants.TEXTURETYPE_FLOAT,
+      format: Constants.TEXTUREFORMAT_RGBA,
+      samplingMode: Constants.TEXTURE_NEAREST_SAMPLINGMODE,
+      generateDepthBuffer: false,
+      generateStencilBuffer: false,
+      creationFlags: Constants.TEXTURE_CREATIONFLAG_STORAGE,
+    });
+
     this.displacementTexture.wrapU = Constants.TEXTURE_WRAP_ADDRESSMODE;
     this.displacementTexture.wrapV = Constants.TEXTURE_WRAP_ADDRESSMODE;
 
     this.slopeTexture.wrapU = Constants.TEXTURE_WRAP_ADDRESSMODE;
     this.slopeTexture.wrapV = Constants.TEXTURE_WRAP_ADDRESSMODE;
+
+    this.foamTexture.wrapU = Constants.TEXTURE_WRAP_ADDRESSMODE;
+    this.foamTexture.wrapV = Constants.TEXTURE_WRAP_ADDRESSMODE;
 
     this.initSpectrum();
   }
@@ -240,15 +262,38 @@ export class FFTOcean {
       this.packedSlope[idx4 + 1] = kx * h_r - kz * h_i;
       this.packedSlope[idx4 + 2] = 0.0;
       this.packedSlope[idx4 + 3] = 0.0;
+
+      // 3. 자코비안 편미분(Jxx, Jzz, Jxz) 패킹 (Tessendorf Foam)
+      // dDx/dx = (kx^2 / k) * h, dDz/dz = (kz^2 / k) * h, dDx/dz = (kx * kz / k) * h
+      // 복소 결합: J_comb = Jxx + i * Jzz (IFFT 후 R: Jxx, G: Jzz)
+      // Jxz (IFFT 후 B: Jxz)
+      if (kLenSq > 1e-10) {
+        const invK = 1.0 / Math.sqrt(kLenSq);
+        const kx2_invK = kx * kx * invK;
+        const kz2_invK = kz * kz * invK;
+        const kxkz_invK = kx * kz * invK;
+
+        this.packedFoam[idx4] = kx2_invK * h_r - kz2_invK * h_i;
+        this.packedFoam[idx4 + 1] = kx2_invK * h_i + kz2_invK * h_r;
+        this.packedFoam[idx4 + 2] = kxkz_invK * h_r;
+        this.packedFoam[idx4 + 3] = kxkz_invK * h_i;
+      } else {
+        this.packedFoam[idx4] = 0.0;
+        this.packedFoam[idx4 + 1] = 0.0;
+        this.packedFoam[idx4 + 2] = 0.0;
+        this.packedFoam[idx4 + 3] = 0.0;
+      }
     }
 
     // 3. GPU StorageBuffer로 데이터 전송
     this.dispStorageBuffer.update(this.packedDisplacement);
     this.slopeStorageBuffer.update(this.packedSlope);
+    this.foamStorageBuffer.update(this.packedFoam);
 
-    // 4. WebGPU 단 2번의 IFFT 변환 실행! (Displacement 1회 + Slope 1회)
+    // 4. WebGPU IFFT 변환 실행! (Displacement 1회 + Slope 1회 + Foam 1회)
     this.ifftHelper.execute(this.dispStorageBuffer, this.displacementTexture);
     this.ifftHelper.execute(this.slopeStorageBuffer, this.slopeTexture);
+    this.ifftHelper.execute(this.foamStorageBuffer, this.foamTexture);
   }
 
   updateSpectrum(t: number) {

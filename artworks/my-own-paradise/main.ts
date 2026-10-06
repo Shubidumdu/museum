@@ -155,7 +155,7 @@ export function createFFTOceanScene(
         "sunColor",
         "choppiness",
       ],
-      samplers: ["displacementMap", "slopeMap"],
+      samplers: ["displacementMap", "slopeMap", "foamMap"],
     },
   );
 
@@ -165,6 +165,7 @@ export function createFFTOceanScene(
   oceanMaterial.backFaceCulling = false;
   oceanMaterial.setTexture("displacementMap", ocean.displacementTexture);
   oceanMaterial.setTexture("slopeMap", ocean.slopeTexture);
+  oceanMaterial.setTexture("foamMap", ocean.foamTexture);
   oceanMaterial.setFloat("uvScale", uvScale);
   oceanMaterial.setFloat("choppiness", ocean.choppiness);
   oceanMaterial.setFloat("domainLength", ocean.L);
@@ -189,6 +190,13 @@ export function createFFTOceanScene(
     size: 256,
     initialX: 24,
     initialY: 340,
+    opaqueAlpha: true,
+  });
+  renderDebugCanvas(ocean.foamTexture, {
+    title: "Ocean Foam (R:Jxx, G:Jzz, B:Jxz)",
+    size: 256,
+    initialX: 24,
+    initialY: 660,
     opaqueAlpha: true,
   });
 

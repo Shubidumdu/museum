@@ -1,8 +1,4 @@
-import {
-  type BaseTexture,
-  type Scene,
-  type Observer,
-} from "@babylonjs/core";
+import { type BaseTexture, type Scene, type Observer } from "@babylonjs/core";
 
 export type ChannelMode = "rgba" | "r" | "g" | "b" | "a";
 
@@ -112,7 +108,8 @@ export function renderDebugCanvas(
     backgroundColor: "#0d1117",
     border: "2px solid #232c3d",
     borderRadius: "10px",
-    boxShadow: "0 12px 32px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.05)",
+    boxShadow:
+      "0 12px 32px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.05)",
     overflow: "hidden",
     fontFamily: "'JetBrains Mono', 'Fira Code', Menlo, monospace",
     userSelect: "none",
@@ -270,7 +267,10 @@ export function renderDebugCanvas(
   channels.forEach((mode) => {
     const btn = document.createElement("button");
     btn.textContent = mode.toUpperCase();
-    btn.title = mode === "rgba" ? "RGBA 전체 컬러 표시" : `${mode.toUpperCase()} 채널 단독 표시 (Grayscale)`;
+    btn.title =
+      mode === "rgba"
+        ? "RGBA 전체 컬러 표시"
+        : `${mode.toUpperCase()} 채널 단독 표시 (Grayscale)`;
     Object.assign(btn.style, {
       border: "1px solid #2a364a",
       borderRadius: "4px",
@@ -453,7 +453,11 @@ export function renderDebugCanvas(
     if (!ctx) return;
     const totalPixels = size * size;
 
-    if (!cachedImageData || cachedImageData.width !== size || cachedImageData.height !== size) {
+    if (
+      !cachedImageData ||
+      cachedImageData.width !== size ||
+      cachedImageData.height !== size
+    ) {
       cachedImageData = ctx.createImageData(size, size);
     }
     const imgData = cachedImageData;
@@ -500,7 +504,10 @@ export function renderDebugCanvas(
           imgData.data[px + 3] = 255;
         }
       }
-    } else if (pixelBuffer instanceof Uint8Array || pixelBuffer instanceof Uint8ClampedArray) {
+    } else if (
+      pixelBuffer instanceof Uint8Array ||
+      pixelBuffer instanceof Uint8ClampedArray
+    ) {
       const byteData = pixelBuffer;
       const numChannels = byteData.length >= totalPixels * 4 ? 4 : 1;
 
