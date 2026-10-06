@@ -122,9 +122,10 @@ export function createFFTOceanScene(
   const ocean = new FFTOcean(scene, engine, {
     gridSize: 256,
     domainLength: 256,
-    windDirection: new Vector2(1, 0),
-    amplitude: 120,
+    windDirection: new Vector2(1, 1),
+    amplitude: 128,
     windSpeed: 600,
+    choppiness: 1.2,
   });
 
   // --------------------------------------------------------------------------
@@ -151,8 +152,15 @@ export function createFFTOceanScene(
         "cameraPosition",
         "sunDirection",
         "sunColor",
+        "choppiness",
       ],
-      samplers: ["displacementMap", "slopeXMap", "slopeZMap"],
+      samplers: [
+        "displacementMap",
+        "displacementXMap",
+        "displacementZMap",
+        "slopeXMap",
+        "slopeZMap",
+      ],
     },
   );
 
@@ -161,9 +169,12 @@ export function createFFTOceanScene(
 
   oceanMaterial.backFaceCulling = false;
   oceanMaterial.setTexture("displacementMap", ocean.displacementTexture);
+  oceanMaterial.setTexture("displacementXMap", ocean.displacementXTexture);
+  oceanMaterial.setTexture("displacementZMap", ocean.displacementZTexture);
   oceanMaterial.setTexture("slopeXMap", ocean.slopeXTexture);
   oceanMaterial.setTexture("slopeZMap", ocean.slopeZTexture);
   oceanMaterial.setFloat("uvScale", uvScale);
+  oceanMaterial.setFloat("choppiness", ocean.choppiness);
   oceanMaterial.setFloat("domainLength", ocean.L);
   oceanMaterial.setFloat("meshSize", meshSize);
   oceanMaterial.setVector3(

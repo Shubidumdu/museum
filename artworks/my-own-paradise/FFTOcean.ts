@@ -14,6 +14,7 @@ export interface OceanParameters {
   windSpeed: number;
   windDirection: Vector2;
   amplitude: number;
+  choppiness?: number;
 }
 
 export class FFTOcean {
@@ -22,6 +23,7 @@ export class FFTOcean {
   readonly windSpeed: number;
   readonly windDirection: Vector2;
   readonly amplitude: number;
+  choppiness: number;
 
   engine: WebGPUEngine;
   kx: Float32Array;
@@ -35,14 +37,20 @@ export class FFTOcean {
   packedSpectrum: Float32Array;
   packedSlopeX: Float32Array;
   packedSlopeZ: Float32Array;
+  packedDispX: Float32Array;
+  packedDispZ: Float32Array;
 
   ifftHelper: IFFT2D;
 
   spectrumStorageBuffer: StorageBuffer;
   slopeXBuffer: StorageBuffer;
   slopeZBuffer: StorageBuffer;
+  dispXBuffer: StorageBuffer;
+  dispZBuffer: StorageBuffer;
 
   displacementTexture: RenderTargetTexture;
+  displacementXTexture: RenderTargetTexture;
+  displacementZTexture: RenderTargetTexture;
   slopeXTexture: RenderTargetTexture;
   slopeZTexture: RenderTargetTexture;
 
@@ -55,6 +63,7 @@ export class FFTOcean {
       windDirection,
       windSpeed,
       amplitude,
+      choppiness = 1.2,
     }: OceanParameters,
   ) {
     this.engine = engine;
@@ -63,6 +72,7 @@ export class FFTOcean {
     this.windSpeed = windSpeed;
     this.windDirection = windDirection.normalize();
     this.amplitude = amplitude;
+    this.choppiness = choppiness;
 
     const N = this.N;
     const totalSize = N * N;
@@ -78,6 +88,8 @@ export class FFTOcean {
     this.packedSpectrum = new Float32Array(totalSize * 2); // 256 * 256 * 2
     this.packedSlopeX = new Float32Array(totalSize * 2); // 256 * 256 * 2
     this.packedSlopeZ = new Float32Array(totalSize * 2); // 256 * 256 * 2
+    this.packedDispX = new Float32Array(totalSize * 2); // 256 * 256 * 2 (Dx)
+    this.packedDispZ = new Float32Array(totalSize * 2); // 256 * 256 * 2 (Dz)
 
     this.spectrumStorageBuffer = new StorageBuffer(
       this.engine,
@@ -91,11 +103,49 @@ export class FFTOcean {
       this.engine,
       this.packedSlopeZ.byteLength,
     );
+    this.dispXBuffer = new StorageBuffer(
+      this.engine,
+      this.packedDispX.byteLength,
+    );
+    this.dispZBuffer = new StorageBuffer(
+      this.engine,
+      this.packedDispZ.byteLength,
+    );
 
     this.ifftHelper = new IFFT2D(scene, engine, this.N);
 
     this.displacementTexture = new RenderTargetTexture(
       "ocean_displacement",
+      this.N,
+      scene,
+      {
+        generateMipMaps: false,
+        type: Constants.TEXTURETYPE_FLOAT,
+        format: Constants.TEXTUREFORMAT_RGBA,
+        samplingMode: Constants.TEXTURE_NEAREST_SAMPLINGMODE,
+        generateDepthBuffer: false,
+        generateStencilBuffer: false,
+        creationFlags: Constants.TEXTURE_CREATIONFLAG_STORAGE,
+      },
+    );
+
+    this.displacementXTexture = new RenderTargetTexture(
+      "ocean_displacement_x",
+      this.N,
+      scene,
+      {
+        generateMipMaps: false,
+        type: Constants.TEXTURETYPE_FLOAT,
+        format: Constants.TEXTUREFORMAT_RGBA,
+        samplingMode: Constants.TEXTURE_NEAREST_SAMPLINGMODE,
+        generateDepthBuffer: false,
+        generateStencilBuffer: false,
+        creationFlags: Constants.TEXTURE_CREATIONFLAG_STORAGE,
+      },
+    );
+
+    this.displacementZTexture = new RenderTargetTexture(
+      "ocean_displacement_z",
       this.N,
       scene,
       {
@@ -141,6 +191,12 @@ export class FFTOcean {
 
     this.displacementTexture.wrapU = Constants.TEXTURE_WRAP_ADDRESSMODE;
     this.displacementTexture.wrapV = Constants.TEXTURE_WRAP_ADDRESSMODE;
+
+    this.displacementXTexture.wrapU = Constants.TEXTURE_WRAP_ADDRESSMODE;
+    this.displacementXTexture.wrapV = Constants.TEXTURE_WRAP_ADDRESSMODE;
+
+    this.displacementZTexture.wrapU = Constants.TEXTURE_WRAP_ADDRESSMODE;
+    this.displacementZTexture.wrapV = Constants.TEXTURE_WRAP_ADDRESSMODE;
 
     this.slopeXTexture.wrapU = Constants.TEXTURE_WRAP_ADDRESSMODE;
     this.slopeXTexture.wrapV = Constants.TEXTURE_WRAP_ADDRESSMODE;
@@ -238,12 +294,34 @@ export class FFTOcean {
       // Z축 편미분 주파수 (packedSlopeZ 버퍼에 [real, imag] 순서로 저장)
       this.packedSlopeZ[i * 2] = -kz * h_i;
       this.packedSlopeZ[i * 2 + 1] = kz * h_r;
+
+      // 🌟 추가: 수평 변위 주파수 (Choppiness: -i * (k / |k|) * h)
+      // -i * (h_r + i * h_i) = h_i - i * h_r
+      const kLenSq = kx * kx + kz * kz;
+      if (kLenSq > 1e-10) {
+        const invK = 1.0 / Math.sqrt(kLenSq);
+        const normKx = kx * invK;
+        const normKz = kz * invK;
+
+        this.packedDispX[i * 2] = h_i * normKx;
+        this.packedDispX[i * 2 + 1] = -h_r * normKx;
+
+        this.packedDispZ[i * 2] = h_i * normKz;
+        this.packedDispZ[i * 2 + 1] = -h_r * normKz;
+      } else {
+        this.packedDispX[i * 2] = 0.0;
+        this.packedDispX[i * 2 + 1] = 0.0;
+        this.packedDispZ[i * 2] = 0.0;
+        this.packedDispZ[i * 2 + 1] = 0.0;
+      }
     }
 
     // 3. GPU StorageBuffer로 데이터 전송
     this.spectrumStorageBuffer.update(this.packedSpectrum);
     this.slopeXBuffer.update(this.packedSlopeX);
     this.slopeZBuffer.update(this.packedSlopeZ);
+    this.dispXBuffer.update(this.packedDispX);
+    this.dispZBuffer.update(this.packedDispZ);
 
     // 4. WebGPU 단 2패스 컴퓨트 셰이더로 IFFT 변환 실행!
     this.ifftHelper.execute(
@@ -252,6 +330,8 @@ export class FFTOcean {
     );
     this.ifftHelper.execute(this.slopeXBuffer, this.slopeXTexture);
     this.ifftHelper.execute(this.slopeZBuffer, this.slopeZTexture);
+    this.ifftHelper.execute(this.dispXBuffer, this.displacementXTexture);
+    this.ifftHelper.execute(this.dispZBuffer, this.displacementZTexture);
   }
 
   updateSpectrum(t: number) {
