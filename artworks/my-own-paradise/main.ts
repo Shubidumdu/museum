@@ -134,12 +134,20 @@ export function createFFTOceanScene(
     title: "Ocean Displacement (2D IFFT)",
     size: 256,
   });
+  renderDebugCanvas(ocean.slopeXTexture, {
+    title: "Ocean Displacement (2D IFFT)",
+    size: 256,
+  });
+  renderDebugCanvas(ocean.slopeZTexture, {
+    title: "Ocean Displacement (2D IFFT)",
+    size: 256,
+  });
 
   // 매 프레임 시간 전파 및 IFFT 연산 수행
   let t = 0;
 
   scene.onBeforeRenderObservable.add(() => {
-    t += 0.016;
+    t += engine.getDeltaTime() * 0.001;
     ocean.update(t);
   });
 

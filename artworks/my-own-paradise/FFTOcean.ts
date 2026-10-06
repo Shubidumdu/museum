@@ -32,10 +32,19 @@ export class FFTOcean {
   hReal: Float32Array;
   hImag: Float32Array;
 
-  ifftHelper: IFFT2D;
   packedSpectrum: Float32Array;
+  packedSlopeX: Float32Array;
+  packedSlopeZ: Float32Array;
+
+  ifftHelper: IFFT2D;
+
   spectrumStorageBuffer: StorageBuffer;
+  slopeXBuffer: StorageBuffer;
+  slopeZBuffer: StorageBuffer;
+
   displacementTexture: RenderTargetTexture;
+  slopeXTexture: RenderTargetTexture;
+  slopeZTexture: RenderTargetTexture;
 
   constructor(
     scene: Scene,
@@ -67,14 +76,56 @@ export class FFTOcean {
     this.omega = new Float32Array(totalSize);
 
     this.packedSpectrum = new Float32Array(totalSize * 2); // 256 * 256 * 2
+    this.packedSlopeX = new Float32Array(totalSize * 2); // 256 * 256 * 2
+    this.packedSlopeZ = new Float32Array(totalSize * 2); // 256 * 256 * 2
+
     this.spectrumStorageBuffer = new StorageBuffer(
       this.engine,
       this.packedSpectrum.byteLength,
     );
+    this.slopeXBuffer = new StorageBuffer(
+      this.engine,
+      this.packedSlopeX.byteLength,
+    );
+    this.slopeZBuffer = new StorageBuffer(
+      this.engine,
+      this.packedSlopeZ.byteLength,
+    );
+
     this.ifftHelper = new IFFT2D(scene, engine, this.N);
 
     this.displacementTexture = new RenderTargetTexture(
       "ocean_displacement",
+      this.N,
+      scene,
+      {
+        generateMipMaps: false,
+        type: Constants.TEXTURETYPE_FLOAT,
+        format: Constants.TEXTUREFORMAT_RGBA,
+        samplingMode: Constants.TEXTURE_NEAREST_SAMPLINGMODE,
+        generateDepthBuffer: false,
+        generateStencilBuffer: false,
+        creationFlags: Constants.TEXTURE_CREATIONFLAG_STORAGE,
+      },
+    );
+
+    this.slopeXTexture = new RenderTargetTexture(
+      "ocean_slope_x",
+      this.N,
+      scene,
+      {
+        generateMipMaps: false,
+        type: Constants.TEXTURETYPE_FLOAT,
+        format: Constants.TEXTUREFORMAT_RGBA,
+        samplingMode: Constants.TEXTURE_NEAREST_SAMPLINGMODE,
+        generateDepthBuffer: false,
+        generateStencilBuffer: false,
+        creationFlags: Constants.TEXTURE_CREATIONFLAG_STORAGE,
+      },
+    );
+
+    this.slopeZTexture = new RenderTargetTexture(
+      "ocean_slope_z",
       this.N,
       scene,
       {
@@ -161,18 +212,37 @@ export class FFTOcean {
     const total = this.N * this.N;
 
     for (let i = 0; i < total; i++) {
-      this.packedSpectrum[i * 2] = this.hReal[i];
-      this.packedSpectrum[i * 2 + 1] = this.hImag[i];
+      const h_r = this.hReal[i];
+      const h_i = this.hImag[i];
+
+      this.packedSpectrum[i * 2] = h_r;
+      this.packedSpectrum[i * 2 + 1] = h_i;
+
+      // 🌟 추가: kx, kz 방향의 주파수 미분 (i * k * h)
+      const kx = this.kx[i];
+      const kz = this.kz[i];
+
+      // X축 편미분 주파수 (packedSlopeX 버퍼에 [real, imag] 순서로 저장)
+      this.packedSlopeX[i * 2] = -kx * h_i;
+      this.packedSlopeX[i * 2 + 1] = kx * h_r;
+
+      // Z축 편미분 주파수 (packedSlopeZ 버퍼에 [real, imag] 순서로 저장)
+      this.packedSlopeZ[i * 2] = -kz * h_i;
+      this.packedSlopeZ[i * 2 + 1] = kz * h_r;
     }
 
     // 3. GPU StorageBuffer로 데이터 전송
     this.spectrumStorageBuffer.update(this.packedSpectrum);
+    this.slopeXBuffer.update(this.packedSlopeX);
+    this.slopeZBuffer.update(this.packedSlopeZ);
 
     // 4. WebGPU 단 2패스 컴퓨트 셰이더로 IFFT 변환 실행!
     this.ifftHelper.execute(
       this.spectrumStorageBuffer,
       this.displacementTexture,
     );
+    this.ifftHelper.execute(this.slopeXBuffer, this.slopeXTexture);
+    this.ifftHelper.execute(this.slopeZBuffer, this.slopeZTexture);
   }
 
   updateSpectrum(t: number) {
