@@ -1,4 +1,12 @@
-import { Vector2, type Scene, type AbstractEngine } from "@babylonjs/core";
+import {
+  Vector2,
+  type Scene,
+  RenderTargetTexture,
+  StorageBuffer,
+  WebGPUEngine,
+  Constants,
+} from "@babylonjs/core";
+import { IFFT2D } from "../../src/helpers/ifft2d";
 
 export interface OceanParameters {
   gridSize: number;
@@ -15,6 +23,7 @@ export class FFTOcean {
   readonly windDirection: Vector2;
   readonly amplitude: number;
 
+  engine: WebGPUEngine;
   kx: Float32Array;
   kz: Float32Array;
   h0Real: Float32Array;
@@ -23,9 +32,14 @@ export class FFTOcean {
   hReal: Float32Array;
   hImag: Float32Array;
 
+  ifftHelper: IFFT2D;
+  packedSpectrum: Float32Array;
+  spectrumStorageBuffer: StorageBuffer;
+  displacementTexture: RenderTargetTexture;
+
   constructor(
     scene: Scene,
-    _engine: AbstractEngine,
+    engine: WebGPUEngine,
     {
       gridSize,
       domainLength,
@@ -34,6 +48,7 @@ export class FFTOcean {
       amplitude,
     }: OceanParameters,
   ) {
+    this.engine = engine;
     this.N = gridSize;
     this.L = domainLength;
     this.windSpeed = windSpeed;
@@ -50,6 +65,28 @@ export class FFTOcean {
     this.hReal = new Float32Array(totalSize);
     this.hImag = new Float32Array(totalSize);
     this.omega = new Float32Array(totalSize);
+
+    this.packedSpectrum = new Float32Array(totalSize * 2); // 256 * 256 * 2
+    this.spectrumStorageBuffer = new StorageBuffer(
+      this.engine,
+      this.packedSpectrum.byteLength,
+    );
+    this.ifftHelper = new IFFT2D(scene, engine, this.N);
+
+    this.displacementTexture = new RenderTargetTexture(
+      "ocean_displacement",
+      this.N,
+      scene,
+      {
+        generateMipMaps: false,
+        type: Constants.TEXTURETYPE_FLOAT,
+        format: Constants.TEXTUREFORMAT_RGBA,
+        samplingMode: Constants.TEXTURE_NEAREST_SAMPLINGMODE,
+        generateDepthBuffer: false,
+        generateStencilBuffer: false,
+        creationFlags: Constants.TEXTURE_CREATIONFLAG_STORAGE,
+      },
+    );
 
     this.initSpectrum();
   }
@@ -117,6 +154,27 @@ export class FFTOcean {
       }
     }
   }
+
+  update(t: number) {
+    this.updateSpectrum(t);
+
+    const total = this.N * this.N;
+
+    for (let i = 0; i < total; i++) {
+      this.packedSpectrum[i * 2] = this.hReal[i];
+      this.packedSpectrum[i * 2 + 1] = this.hImag[i];
+    }
+
+    // 3. GPU StorageBuffer로 데이터 전송
+    this.spectrumStorageBuffer.update(this.packedSpectrum);
+
+    // 4. WebGPU 단 2패스 컴퓨트 셰이더로 IFFT 변환 실행!
+    this.ifftHelper.execute(
+      this.spectrumStorageBuffer,
+      this.displacementTexture,
+    );
+  }
+
   updateSpectrum(t: number) {
     const N = this.N;
 

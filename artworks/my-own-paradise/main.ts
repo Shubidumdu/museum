@@ -16,9 +16,7 @@
  */
 
 import {
-  Engine,
   WebGPUEngine,
-  type AbstractEngine,
   Scene,
   Vector2,
   Vector3,
@@ -28,43 +26,39 @@ import {
   DirectionalLight,
   HemisphericLight,
   MeshBuilder,
-  Effect,
-  ShaderMaterial,
 } from "@babylonjs/core";
 import { setupArtworkViewer } from "../../src/components/viewer-shell.ts";
 import { FFTOcean } from "./FFTOcean.ts";
+import { renderDebugCanvas } from "../../src/helpers/renderDebugCanvas.ts";
 
 // 공통 뷰어 셸 (헤더, 도슨트 명판, 전체화면 버튼)
 setupArtworkViewer("my-own-paradise");
 
 const canvas = document.getElementById("artworkCanvas") as HTMLCanvasElement;
-const debugCanvas = document.getElementById("debug") as HTMLCanvasElement;
 
 /**
- * WebGPU 우선 초기화 함수
- * 브라우저가 WebGPU를 지원하면 WebGPUEngine을 활성화하고,
- * 미지원 환경일 경우 표준 Engine(WebGL2)으로 안전하게 폴백합니다.
+ * WebGPU 초기화 함수
+ * WebGPU Compute Shader를 활용하여 FFT 해양 시뮬레이션을 수행합니다.
  */
 async function initializeOceanApp() {
-  let engine: AbstractEngine;
-
   const isWebGPUSupported =
     typeof navigator !== "undefined" &&
     "gpu" in navigator &&
     (await WebGPUEngine.IsSupportedAsync);
 
-  if (isWebGPUSupported) {
-    console.info("⚡ WebGPUEngine enabled for FFT Ocean!");
-    const webgpuEngine = new WebGPUEngine(canvas, {
-      antialias: true,
-      powerPreference: "high-performance",
-    });
-    await webgpuEngine.initAsync();
-    engine = webgpuEngine;
-  } else {
-    console.warn("⚠️ WebGPU not available, falling back to WebGL2 Engine.");
-    engine = new Engine(canvas, true);
+  if (!isWebGPUSupported) {
+    console.error(
+      "⚠️ WebGPU not available. WebGPU is required for FFT Ocean simulation.",
+    );
+    return;
   }
+
+  console.info("⚡ WebGPUEngine enabled for FFT Ocean!");
+  const engine = new WebGPUEngine(canvas, {
+    antialias: true,
+    powerPreference: "high-performance",
+  });
+  await engine.initAsync();
 
   const scene = createFFTOceanScene(engine, canvas);
 
@@ -79,7 +73,7 @@ async function initializeOceanApp() {
 }
 
 export function createFFTOceanScene(
-  engine: AbstractEngine,
+  engine: WebGPUEngine,
   canvas: HTMLCanvasElement,
 ): Scene {
   const scene = new Scene(engine);
@@ -121,6 +115,7 @@ export function createFFTOceanScene(
     {
       width: 140,
       height: 140,
+      updatable: true,
       subdivisions: 200, // 버텍스 셰이더 변위를 위한 정밀 격자
     },
     scene,
@@ -128,56 +123,27 @@ export function createFFTOceanScene(
 
   const ocean = new FFTOcean(scene, engine, {
     gridSize: 256,
-    domainLength: 1000,
-    windDirection: new Vector2(1, 1),
-    amplitude: 1,
-    windSpeed: 31,
+    domainLength: 256,
+    windDirection: new Vector2(1, 0),
+    amplitude: 1000,
+    windSpeed: 100,
   });
 
-  // For Debug
+  // 실시간 텍스처 디버거 호출 (드래그 가능한 플로팅 오버레이 캔버스)
+  renderDebugCanvas(ocean.displacementTexture, {
+    title: "Ocean Displacement (2D IFFT)",
+    size: 256,
+  });
 
+  // 매 프레임 시간 전파 및 IFFT 연산 수행
   let t = 0;
 
   scene.onBeforeRenderObservable.add(() => {
     t += 0.016;
-    ocean.updateSpectrum(t);
-    renderSpectrumDebug(debugCanvas, ocean.N, ocean.hReal, ocean.hImag);
+    ocean.update(t);
   });
 
   return scene;
-}
-
-function renderSpectrumDebug(
-  canvas: HTMLCanvasElement,
-  N: number,
-  h_real: Float32Array,
-  h_imag: Float32Array,
-) {
-  const ctx = canvas.getContext("2d")!;
-  const imgData = ctx.createImageData(N, N);
-
-  for (let i = 0; i < N * N; i++) {
-    const re = h_real[i];
-    const im = h_imag[i];
-
-    // 1. 진폭(에너지 크기)
-    const mag = Math.hypot(re, im);
-
-    // 2. 위상각(-PI ~ PI)을 0 ~ 255 밝기로 매핑 (파도가 도는 모습 관찰용)
-    const phase = Math.atan2(im, re); // -PI ~ PI
-    const phaseColor = Math.floor(((phase + Math.PI) / (2 * Math.PI)) * 255);
-
-    // 3. 진폭 가중치 적용
-    const brightness = Math.min(255, Math.floor(mag * 50));
-
-    const px = i * 4;
-    imgData.data[px] = phaseColor; // R: 회전하는 위상 각도
-    imgData.data[px + 1] = brightness; // G: 에너지 크기
-    imgData.data[px + 2] = 128; // B
-    imgData.data[px + 3] = 255; // Alpha
-  }
-
-  ctx.putImageData(imgData, 0, 0);
 }
 
 // 앱 실행
