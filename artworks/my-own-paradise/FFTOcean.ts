@@ -139,6 +139,15 @@ export class FFTOcean {
       },
     );
 
+    this.displacementTexture.wrapU = Constants.TEXTURE_WRAP_ADDRESSMODE;
+    this.displacementTexture.wrapV = Constants.TEXTURE_WRAP_ADDRESSMODE;
+
+    this.slopeXTexture.wrapU = Constants.TEXTURE_WRAP_ADDRESSMODE;
+    this.slopeXTexture.wrapV = Constants.TEXTURE_WRAP_ADDRESSMODE;
+
+    this.slopeZTexture.wrapU = Constants.TEXTURE_WRAP_ADDRESSMODE;
+    this.slopeZTexture.wrapV = Constants.TEXTURE_WRAP_ADDRESSMODE;
+
     this.initSpectrum();
   }
 
