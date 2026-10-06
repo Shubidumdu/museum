@@ -21,7 +21,6 @@ import {
   Color4,
   ArcRotateCamera,
   DirectionalLight,
-  HemisphericLight,
   MeshBuilder,
   Effect,
   ShaderMaterial,
@@ -31,7 +30,6 @@ import { FFTOcean } from "./FFTOcean.ts";
 import { renderDebugCanvas } from "../../src/helpers/renderDebugCanvas.ts";
 import oceanVertexShader from "./ocean_vertex.glsl?raw";
 import oceanFragmentShader from "./ocean_fragment.glsl?raw";
-import { ShowInspector } from "@babylonjs/inspector";
 
 // 공통 뷰어 셸 (헤더, 도슨트 명판, 전체화면 버튼)
 setupArtworkViewer("my-own-paradise");
