@@ -1,5 +1,6 @@
 import {
   Vector2,
+  Vector3,
   type Scene,
   RenderTargetTexture,
   StorageBuffer,
@@ -17,6 +18,17 @@ export interface OceanParameters {
   choppiness?: number;
 }
 
+export interface DominantWaveMode {
+  idx: number;
+  deltaN: number;
+  deltaM: number;
+  kx: number;
+  kz: number;
+  normKx: number;
+  normKz: number;
+  amp: number;
+}
+
 export class FFTOcean {
   readonly N: number;
   readonly L: number;
@@ -24,6 +36,7 @@ export class FFTOcean {
   readonly windDirection: Vector2;
   readonly amplitude: number;
   choppiness: number;
+  dominantModes: DominantWaveMode[] = [];
 
   engine: WebGPUEngine;
   kx: Float32Array;
@@ -211,6 +224,34 @@ export class FFTOcean {
         this.omega[idx] = Math.sqrt(g * kLength);
       }
     }
+
+    // 부유체(Floating Objects)의 실시간 물리 연산을 위해 전체 파도 중 에너지가 가장 큰 상위 48개 모드 캐싱
+    const modeList: DominantWaveMode[] = [];
+    for (let m = 0; m < N; m++) {
+      for (let n = 0; n < N; n++) {
+        const idx = m * N + n;
+        const r = this.h0Real[idx];
+        const i = this.h0Imag[idx];
+        const amp = Math.sqrt(r * r + i * i);
+        if (amp > 1e-4) {
+          const kx = this.kx[idx];
+          const kz = this.kz[idx];
+          const kLen = Math.sqrt(kx * kx + kz * kz);
+          modeList.push({
+            idx,
+            deltaN: n - N / 2,
+            deltaM: m - N / 2,
+            kx,
+            kz,
+            normKx: kLen > 1e-6 ? kx / kLen : 0,
+            normKz: kLen > 1e-6 ? kz / kLen : 0,
+            amp,
+          });
+        }
+      }
+    }
+    modeList.sort((a, b) => b.amp - a.amp);
+    this.dominantModes = modeList.slice(0, 48);
   }
 
   update(t: number) {
@@ -323,5 +364,75 @@ export class FFTOcean {
         this.hImag[idx] = (r1 - r2) * sinW + (i1 - i2) * cosW;
       }
     }
+  }
+
+  /**
+   * 주어진 월드 X, Z 좌표에서 실시간 파도 높이(Displacement Y),
+   * 수평 변위(Dx, Dz), 및 물리적 표면 법선 벡터(Normal)를 고속 산출합니다.
+   * 버텍스/프래그먼트 셰이더의 파도 변위 및 노멀과 100% 동일하게 일치합니다.
+   */
+  getWaterDisplacementAndNormal(
+    worldX: number,
+    worldZ: number,
+    meshSize: number,
+    uvScale: number,
+  ): {
+    height: number;
+    dispX: number;
+    dispZ: number;
+    normal: Vector3;
+  } {
+    const N = this.N;
+    const invNorm = 1.0 / (N * N);
+
+    // 월드 좌표 -> 타일링 UV 좌표 (ocean_vertex.glsl 및 CreateGround UV 체계와 1:1 일치)
+    const u = ((worldX / meshSize + 0.5) * uvScale) % 1.0;
+    const v = ((worldZ / meshSize + 0.5) * uvScale) % 1.0;
+    const fracU = u < 0 ? u + 1.0 : u;
+    const fracV = v < 0 ? v + 1.0 : v;
+
+    let height = 0;
+    let dispX = 0;
+    let dispZ = 0;
+    let slopeX = 0;
+    let slopeZ = 0;
+
+    const modes = this.dominantModes;
+    const count = modes.length;
+
+    for (let i = 0; i < count; i++) {
+      const mode = modes[i];
+      const idx = mode.idx;
+
+      const hr = this.hReal[idx];
+      const hi = this.hImag[idx];
+
+      const phi = 2.0 * Math.PI * (mode.deltaN * fracU + mode.deltaM * fracV);
+      const cosP = Math.cos(phi);
+      const sinP = Math.sin(phi);
+
+      // 1. 수직 높이 (Dy)
+      height += (hr * cosP - hi * sinP) * invNorm;
+
+      // 2. 수평 변위 (Dx, Dz)
+      const dCommon = (hi * cosP + hr * sinP) * invNorm;
+      dispX -= mode.normKx * dCommon;
+      dispZ -= mode.normKz * dCommon;
+
+      // 3. 표면 기울기 (SlopeX, SlopeZ)
+      const sCommon = (hr * sinP + hi * cosP) * invNorm;
+      slopeX += -mode.kx * sCommon;
+      slopeZ += -mode.kz * sCommon;
+    }
+
+    // 물리적 법선 벡터 복원 (ocean_fragment.glsl 공식과 100% 일치)
+    const slopeScale = uvScale * (this.L / meshSize);
+    const normal = new Vector3(
+      -slopeX * slopeScale,
+      1.0,
+      -slopeZ * slopeScale,
+    ).normalize();
+
+    return { height, dispX, dispZ, normal };
   }
 }
