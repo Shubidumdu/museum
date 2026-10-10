@@ -29,6 +29,7 @@ function getArtworkEntries(): Record<string, string> {
 }
 
 export default defineConfig({
+  assetsInclude: ['**/*.glb', '**/*.gltf'],
   build: {
     rollupOptions: {
       input: getArtworkEntries(),
