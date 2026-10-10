@@ -2,11 +2,9 @@ precision highp float;
 
 varying vec3 vWorldPos;
 varying vec2 vTiledUV;
-varying vec3 vRefractionTexCoord;
 
 uniform sampler2D slopeMap;
 uniform sampler2D foamMap;
-uniform sampler2D refractionMap;
 uniform float uvScale;
 uniform float domainLength;
 uniform float meshSize;
@@ -14,10 +12,6 @@ uniform float choppiness;
 uniform vec3 cameraPosition;
 uniform vec3 sunDirection;
 uniform vec3 sunColor;
-
-uniform mat4 view;
-uniform float refractionStrength;
-uniform float flipRefractionY;
 
 void main() {
     // 1. 단일 slopeMap 샘플링 (R: slopeX, G: slopeZ)
@@ -87,39 +81,8 @@ void main() {
     // 스펙큘러에도 프레넬을 반영하여 스침각에서 더욱 사실적으로 빛남
     vec3 specular = sunColor * (specWide + specSharp) * sunFacing * (0.6 + 0.4 * fresnel);
 
-    // -------------------------------------------------------------------------
-    // 9. 수중 굴절 (Underwater Refraction) 계산
-    // -------------------------------------------------------------------------
-    // 투영 텍스처 좌표 계산 (Babylon RTT 표준 투영: DPI/해상도 독립적 1:1 위치 매핑)
-    vec2 baseProjUV = vRefractionTexCoord.xy / max(0.0001, vRefractionTexCoord.z);
-    if (flipRefractionY > 0.5) {
-        baseProjUV.y = 1.0 - baseProjUV.y;
-    }
-
-    // 파도 노멀의 수평 섭동(Slopes)을 카메라(뷰) 공간으로 투영하여
-    // 카메라 회전각에 맞춰 항상 올바른 화면 방향으로 굴절 왜곡 적용
-    vec3 worldSlopePerturbation = vec3(-slopeX * slopeScale, 0.0, -slopeZ * slopeScale);
-    vec3 viewPerturbation = (view * vec4(worldSlopePerturbation, 0.0)).xyz;
-
-    // 카메라 거리에 따른 왜곡 감쇠 (원거리 노이즈 방지)
-    float distToCam = length(cameraPosition - vWorldPos);
-    float distFactor = clamp(40.0 / max(5.0, distToCam), 0.3, 1.5);
-    vec2 refractionOffset = viewPerturbation.xy * refractionStrength * distFactor;
-
-    vec2 refractedUV = clamp(baseProjUV + refractionOffset, vec2(0.001), vec2(0.999));
-
-    // 수중 씬(물속에 잠긴 물체) 샘플링
-    vec4 refSample = texture2D(refractionMap, refractedUV);
-    vec3 refractionColor = refSample.rgb;
-    float submergedMask = refSample.a; // 물체가 잠겨있는 픽셀은 1.0, 빈 바다는 0.0
-
-    // 물체가 잠긴 영역: 굴절된 물체 색상에 바다 톤을 합성하여 물속 깊이감 표현
-    // 물체가 없는 일반 영역: 기존 waterBody 유지
-    vec3 submergedColor = mix(refractionColor, waterBody, 0.25);
-    vec3 baseWaterColor = mix(waterBody, submergedColor, submergedMask);
-
-    // 10. 최종 색상 합성: 포말 합성 (기존 셰이딩 유지)
-    vec3 finalColor = baseWaterColor + foam;
+    // 9. 최종 색상 합성: 포말 합성 (기존 셰이딩 유지)
+    vec3 finalColor = waterBody + foam;
 
     gl_FragColor = vec4(finalColor, 1.0);
 }

@@ -15,7 +15,6 @@ uniform float choppiness;
 // Varyings
 varying vec3 vWorldPos;
 varying vec2 vTiledUV;
-varying vec3 vRefractionTexCoord;
 
 void main() {
     vec2 tiledUV = uv * uvScale;
@@ -36,10 +35,5 @@ void main() {
     vec4 worldPos = world * vec4(pos, 1.0);
     vWorldPos = worldPos.xyz;
     gl_Position = worldViewProjection * vec4(pos, 1.0);
-
-    // 투영 텍스처 좌표 계산 (Babylon RTT 표준 투영: DPI/해상도 독립적 1:1 위치 매핑)
-    vRefractionTexCoord.x = 0.5 * (gl_Position.w + gl_Position.x);
-    vRefractionTexCoord.y = 0.5 * (gl_Position.w + gl_Position.y);
-    vRefractionTexCoord.z = gl_Position.w;
 }
 
