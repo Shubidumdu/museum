@@ -127,15 +127,15 @@ void main() {
     const vec3 INK   = vec3(0.0, 0.0, 0.0); // 검은색 잉크선
     float inkMask = 0.0;
 
-    if (screentoneType < 0.5) {
+    if (screentoneType < 0.7) {
         // =====================================================================
         // [0. 순수 1-bit 빗금 밀도 모드 (1-Bit Hatching Density Mode)]
         // =====================================================================
         // 음영 임계값에 따라 빗금의 밀도(간격 및 교차)를 4단계로 조절
-        if (E >= 0.72) {
+        if (E >= .35) {
             // 하이라이트: 완전한 흰색 (빗금 없음)
             inkMask = 0.0;
-        } else if (E >= 0.48) {
+        } else if (E >= 0.325) {
             // 1차 음영: 성긴 단일 빗금 (45도 기본 간격 D)
             inkMask = calcHatch(distH1, density * 0.22);
         } else if (E >= 0.28) {
@@ -143,7 +143,7 @@ void main() {
             float m1 = calcHatch(distH1, density * 0.26);
             float m2 = calcHatch(distH2, density * 0.26);
             inkMask = max(m1, m2);
-        } else if (E >= 0.12) {
+        } else if (E >= 0.175) {
             // 3차 심층 음영: 고밀도 교차 빗금 (중간선 삽입으로 밀도 2배, 간격 D/2)
             float m1 = max(calcHatch(distH1, density * 0.24), calcHatch(distH2, density * 0.24));
             float m2 = max(calcHatch(distH3, density * 0.24), calcHatch(distH4, density * 0.24));

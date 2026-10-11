@@ -139,7 +139,7 @@ export function createFFTOceanScene(
     gridSize: 256,
     domainLength: 256,
     windDirection: new Vector2(1, 1),
-    amplitude: 32,
+    amplitude: 24,
     windSpeed: 120,
     choppiness: 1,
   });
