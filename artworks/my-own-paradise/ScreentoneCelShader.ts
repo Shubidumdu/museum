@@ -73,20 +73,21 @@ vec3 perturbNormal(vec3 normal, vec3 worldPos, vec2 uv, vec3 normalSample) {
     return normalize(TBN * mapN);
 }
 
-// 안티앨리어싱 빗금 선 마스크 함수
+// 안티앨리어싱 빗금 선 마스크 함수 (1-bit 날카로운 펜선 + 0.5px 서브픽셀 안정화)
 float calcHatch(float dist, float thickness) {
     float r = thickness * 0.5;
-    return 1.0 - smoothstep(r - 0.75, r + 0.75, dist);
+    return 1.0 - smoothstep(r - 0.5, r + 0.5, dist);
 }
 
 // 안티앨리어싱 망점 원형 마스크 함수
 float calcDot(float dist, float radius) {
-    return 1.0 - smoothstep(radius - 0.75, radius + 0.75, dist);
+    return 1.0 - smoothstep(radius - 0.5, radius + 0.5, dist);
 }
 
 void main() {
     vec4 baseTex = texture2D(baseColorMap, vUV);
-    vec3 baseColor = baseTex.rgb;
+    // 텍스처 자체의 명암(디테일, 주름 등)을 반영하기 위한 휘도(Luminance) 계산
+    float texLuma = dot(baseTex.rgb, vec3(0.299, 0.587, 0.114));
 
     // NormalGL 텍스처에서 미세 요철 및 주름 복원
     vec3 normalTex = texture2D(normalMap, vUV).rgb;
@@ -101,8 +102,9 @@ void main() {
 
     float NdotL = max(0.0, dot(N, L));
 
-    // 전체 조명 유효 강도 (빛 방향 및 AO 결합)
-    float E = NdotL * (0.35 + 0.65 * ao);
+    // 전체 조명 유효 강도: 빛 방향(NdotL), AO, 텍스처 명암을 결합하여 음영 유효값(E) 산출
+    float light = NdotL;
+    float E = clamp((light * 0.70 + 0.30 * ao) * (0.20 + 0.80 * texLuma), 0.0, 1.0);
 
     // -------------------------------------------------------------------------
     // [만화 인쇄풍 스크린톤 패턴 계산 (Screen-Space Halftone Dots & Hatching Lines)]
@@ -110,105 +112,118 @@ void main() {
     vec2 screenPos = gl_FragCoord.xy;
     float density = max(4.0, screentoneDensity);
 
-    // 1. 점 무늬 (Halftone Dot Screentone) - 45도 회전 정방 격자
-    float rotAngle = 0.785398; // 45도
-    mat2 rotMat = mat2(cos(rotAngle), -sin(rotAngle), sin(rotAngle), cos(rotAngle));
-    vec2 rotCoord = rotMat * screenPos;
-    vec2 dotGrid = mod(rotCoord, density) - vec2(density * 0.5);
-    float dotDist = length(dotGrid);
+    // 1차 빗금 (45도 및 -45도, 기본 간격 D)
+    float distH1 = abs(mod(screenPos.x + screenPos.y, density) - density * 0.5);
+    float distH2 = abs(mod(screenPos.x - screenPos.y, density) - density * 0.5);
 
-    // 2. 빗금 무늬 (Diagonal Hatching Lines) - 45도(/) 및 -45도(\) 선 중심과의 거리
-    float distHatch1 = abs(mod(screenPos.x + screenPos.y, density) - density * 0.5);
-    float distHatch2 = abs(mod(screenPos.x - screenPos.y, density) - density * 0.5);
+    // 2차 중간 삽입 빗금 (1차 빗금 사이사이에 배치하여 간격 D/2로 밀도 2배 구현)
+    float distH3 = abs(mod(screenPos.x + screenPos.y + density * 0.5, density) - density * 0.5);
+    float distH4 = abs(mod(screenPos.x - screenPos.y + density * 0.5, density) - density * 0.5);
 
     // -------------------------------------------------------------------------
-    // [임계값(Threshold)에 따른 셀 셰이딩 & 스크린톤 톤 매핑]
+    // [1-Bit 셰이딩: 순백 종이(PAPER) 위에 검은색 잉크(INK) 빗금의 밀도로 명암 조절]
     // -------------------------------------------------------------------------
-    // 4단계 만화 음영 티어:
-    // Tier 3: 하이라이트 (E >= 0.70) -> 순수한 밝은 톤 (노 스크린톤)
-    // Tier 2: 1차 음영 (0.45 <= E < 0.70) -> 얇은 빗금 또는 미세 점 무늬 (연한 톤)
-    // Tier 1: 2차 음영 (0.22 <= E < 0.45) -> 굵은 빗금 또는 중간 점 무늬 (진한 톤)
-    // Tier 0: 짙은 그림자/틈새 (E < 0.22) -> 교차 빗금 또는 대형 망점 (매우 진한 톤)
-
-    vec3 toneColor = baseColor;
-    vec3 darkInk = baseColor * 0.20; // 스크린톤 잉크 색상
+    const vec3 PAPER = vec3(1.0, 1.0, 1.0); // 순백 종이 바탕
+    const vec3 INK   = vec3(0.0, 0.0, 0.0); // 검은색 잉크선
+    float inkMask = 0.0;
 
     if (screentoneType < 0.5) {
         // =====================================================================
-        // [0. 순수 빗금 무늬 모드 (Hatching Lines Mode)]
+        // [0. 순수 1-bit 빗금 밀도 모드 (1-Bit Hatching Density Mode)]
         // =====================================================================
-        if (E >= 0.70) {
-            // 하이라이트: 깨끗하고 화사한 원본 컬러
-            toneColor = baseColor * 1.10;
-        } else if (E >= 0.45) {
-            // 1차 음영: 얇은 45도 단일 빗금 (연한 빗금)
-            float mask = calcHatch(distHatch1, density * 0.18);
-            toneColor = mix(baseColor * 0.95, darkInk, mask);
-        } else if (E >= 0.22) {
-            // 2차 음영: 굵고 선명한 45도 단일 빗금 (진한 빗금)
-            float mask = calcHatch(distHatch1, density * 0.38);
-            toneColor = mix(baseColor * 0.75, darkInk, mask);
+        // 음영 임계값에 따라 빗금의 밀도(간격 및 교차)를 4단계로 조절
+        if (E >= 0.72) {
+            // 하이라이트: 완전한 흰색 (빗금 없음)
+            inkMask = 0.0;
+        } else if (E >= 0.48) {
+            // 1차 음영: 성긴 단일 빗금 (45도 기본 간격 D)
+            inkMask = calcHatch(distH1, density * 0.22);
+        } else if (E >= 0.28) {
+            // 2차 음영: 교차 빗금 (45도 + -45도 교차 빗금, 간격 D)
+            float m1 = calcHatch(distH1, density * 0.26);
+            float m2 = calcHatch(distH2, density * 0.26);
+            inkMask = max(m1, m2);
+        } else if (E >= 0.12) {
+            // 3차 심층 음영: 고밀도 교차 빗금 (중간선 삽입으로 밀도 2배, 간격 D/2)
+            float m1 = max(calcHatch(distH1, density * 0.24), calcHatch(distH2, density * 0.24));
+            float m2 = max(calcHatch(distH3, density * 0.24), calcHatch(distH4, density * 0.24));
+            inkMask = max(m1, m2);
         } else {
-            // 3차 심층 음영: 45도 + -45도 이중 교차 빗금 (Cross-Hatching)
-            float mask1 = calcHatch(distHatch1, density * 0.32);
-            float mask2 = calcHatch(distHatch2, density * 0.32);
-            float crossMask = max(mask1, mask2);
-            toneColor = mix(baseColor * 0.50, darkInk, crossMask);
+            // 최심층 음영 / 틈새: 잉크 먹칠 (완전한 검은색)
+            inkMask = 1.0;
         }
     } else if (screentoneType < 1.5) {
         // =====================================================================
-        // [1. 순수 점 무늬 모드 (Halftone Dot Mode)]
+        // [1. 순수 1-bit 점 무늬 모드 (1-Bit Halftone Dot Mode)]
         // =====================================================================
-        if (E >= 0.70) {
-            // 하이라이트: 깨끗한 원본 컬러
-            toneColor = baseColor * 1.10;
-        } else if (E >= 0.45) {
-            // 1차 음영: 미세한 점 무늬 (연한 점 무늬)
-            float mask = calcDot(dotDist, density * 0.16);
-            toneColor = mix(baseColor * 0.95, darkInk, mask);
-        } else if (E >= 0.22) {
-            // 2차 음영: 중간 크기 점 무늬 (진한 점 무늬)
-            float mask = calcDot(dotDist, density * 0.32);
-            toneColor = mix(baseColor * 0.75, darkInk, mask);
+        float rotAngle = 0.785398; // 45도 회전 정방 격자
+        mat2 rotMat = mat2(cos(rotAngle), -sin(rotAngle), sin(rotAngle), cos(rotAngle));
+        vec2 rotCoord = rotMat * screenPos;
+        vec2 dotGrid1 = mod(rotCoord, density) - vec2(density * 0.5);
+        float dotDist1 = length(dotGrid1);
+
+        vec2 dotGrid2 = mod(rotCoord + vec2(density * 0.5), density) - vec2(density * 0.5);
+        float dotDist2 = length(dotGrid2);
+
+        if (E >= 0.72) {
+            inkMask = 0.0;
+        } else if (E >= 0.48) {
+            // 미세하고 성긴 점 무늬
+            inkMask = calcDot(dotDist1, density * 0.16);
+        } else if (E >= 0.28) {
+            // 중간 크기 점 무늬
+            inkMask = calcDot(dotDist1, density * 0.30);
+        } else if (E >= 0.12) {
+            // 고밀도 복합 망점 (점 개수 2배 증가)
+            float m1 = calcDot(dotDist1, density * 0.32);
+            float m2 = calcDot(dotDist2, density * 0.24);
+            inkMask = max(m1, m2);
         } else {
-            // 3차 심층 음영: 굵직하고 빽빽한 망점 (매우 진한 점 무늬)
-            float mask = calcDot(dotDist, density * 0.46);
-            toneColor = mix(baseColor * 0.50, darkInk, mask);
+            inkMask = 1.0;
         }
     } else {
         // =====================================================================
-        // [2. 하이브리드 모드 (Hybrid: 밝은 곳 점 무늬 -> 어두운 곳 빗금/교차 빗금)]
+        // [2. 순수 1-bit 하이브리드 모드 (1-Bit Hybrid Mode)]
         // =====================================================================
-        if (E >= 0.70) {
-            toneColor = baseColor * 1.10;
-        } else if (E >= 0.45) {
-            // 밝은 음영: 섬세한 점 무늬
-            float mask = calcDot(dotDist, density * 0.18);
-            toneColor = mix(baseColor * 0.95, darkInk, mask);
-        } else if (E >= 0.22) {
-            // 중간 음영: 45도 단일 빗금
-            float mask = calcHatch(distHatch1, density * 0.35);
-            toneColor = mix(baseColor * 0.75, darkInk, mask);
+        // 밝은 곳은 섬세한 망점 -> 어두워질수록 단일 빗금 -> 교차 빗금 -> 먹칠
+        float rotAngle = 0.785398;
+        mat2 rotMat = mat2(cos(rotAngle), -sin(rotAngle), sin(rotAngle), cos(rotAngle));
+        vec2 dotGrid = mod(rotMat * screenPos, density) - vec2(density * 0.5);
+        float dotDist = length(dotGrid);
+
+        if (E >= 0.72) {
+            inkMask = 0.0;
+        } else if (E >= 0.48) {
+            // 섬세한 망점
+            inkMask = calcDot(dotDist, density * 0.18);
+        } else if (E >= 0.28) {
+            // 45도 단일 빗금
+            inkMask = calcHatch(distH1, density * 0.26);
+        } else if (E >= 0.12) {
+            // 교차 빗금
+            float m1 = calcHatch(distH1, density * 0.26);
+            float m2 = calcHatch(distH2, density * 0.26);
+            inkMask = max(m1, m2);
         } else {
-            // 깊은 음영: 교차 빗금
-            float mask1 = calcHatch(distHatch1, density * 0.32);
-            float mask2 = calcHatch(distHatch2, density * 0.32);
-            float crossMask = max(mask1, mask2);
-            toneColor = mix(baseColor * 0.50, darkInk, crossMask);
+            inkMask = 1.0;
         }
     }
 
-    // 만화풍 스펙큘러 글린트 (Cartoon Specular Glint)
+    // 만화풍 스펙큘러 하이라이트 (하이라이트 영역은 잉크를 깎아내어 순백 강조)
     float NdotH = max(0.0, dot(N, H));
-    float specMask = (NdotH > 0.96 && NdotL > 0.25) ? 1.0 : 0.0;
-    vec3 specular = sunColor * specMask * 0.45;
+    if (NdotH > 0.95 && NdotL > 0.25) {
+        inkMask = 0.0;
+    }
 
-    // 만화풍 실루엣 림 라이트 (Rim Light)
+    // 만화풍 실루엣 림 라이트 (역광 하이라이트)
     float rim = 1.0 - max(0.0, dot(N, V));
-    float rimMask = (rim > 0.76 && NdotL > 0.15) ? 1.0 : 0.0;
-    vec3 rimLight = baseColor * rimMask * 0.35;
+    if (rim > 0.85 && NdotL > 0.15) {
+        inkMask = 0.0;
+    }
 
-    vec3 finalColor = toneColor + specular + rimLight;
+    // 최종 1-bit 합성: 흰색 종이(PAPER) 바탕 위에 검은색 잉크(INK)
+    vec3 finalColor = mix(PAPER, INK, inkMask);
+
     // 침대 고유 오브젝트 식별 ID(알파 0.5): 포스트 프로세스에서 바다(알파 1.0)와의 경계선 검출에 활용
     gl_FragColor = vec4(finalColor, 0.5);
 }

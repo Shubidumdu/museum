@@ -1,17 +1,3 @@
-/**
- * ============================================================================
- * [My Own Paradise - WebGPU FFT Ocean Artwork]
- *
- * 4단계: 지오메트리 변위 (Vertex Processing)
- *  - displacementTexture를 버텍스 셰이더에서 샘플링하여 수직 높이 변위 적용.
- *  - uvScale을 적용하여 고화질 타일링 패턴 구성.
- *
- * 5단계: 노멀 매핑 (Normal Mapping)
- *  - slopeXTexture와 slopeZTexture를 픽셀 셰이더에서 샘플링하여
- *    표면 법선 벡터를 복원 및 노멀 매핑 적용.
- * ============================================================================
- */
-
 import {
   WebGPUEngine,
   Scene,
@@ -41,13 +27,14 @@ import oceanFragmentShader from "./ocean_fragment.glsl?raw";
 import oceanDepthVertexShader from "./ocean_depth_vertex.glsl?raw";
 import oceanDepthFragmentShader from "./ocean_depth_fragment.glsl?raw";
 import outlinePostProcessShader from "./outline_postprocess.glsl?raw";
-import { createSky } from "./SkyShader.ts";
 import { createScreentoneMaterial } from "./ScreentoneCelShader.ts";
 
 import bedGlbUrl from "./bed.glb";
 import bedBaseColorUrl from "./bed_DefaultMaterial_BaseColor.png";
 import bedNormalUrl from "./bed_DefaultMaterial_NormalGL.png";
 import bedAOUrl from "./bed_DefaultMaterial_AO.png";
+// import { ShowInspector } from "@babylonjs/inspector";
+import { degToRad } from "../../src/utils/math";
 
 // 로컬 Draco 디코더 설정 (외부 CDN 요청 방지 및 오프라인 디코딩)
 DracoCompression.Configuration = {
@@ -113,10 +100,10 @@ export function createFFTOceanScene(
   // 1. 카메라 설정 (Orbit 컨트롤)
   const camera = new ArcRotateCamera(
     "Camera",
-    -Math.PI / 3,
-    Math.PI / 3.4,
-    55,
-    new Vector3(0, 1.2, 0),
+    degToRad(78),
+    degToRad(81.6),
+    18.7843,
+    new Vector3(0, 0, 0),
     scene,
   );
   camera.attachControl(canvas, true);
@@ -145,17 +132,15 @@ export function createFFTOceanScene(
     },
     scene,
   );
-
-  // 4. 하늘(Sky Dome) 생성 - 사용자 정의 WGSL/GLSL 스카이 셰이더 적용
-  createSky(scene, camera);
+  oceanMesh.forceSharedVertices();
 
   // 5. FFT 해양 시뮬레이터 초기화 (N=256, domainLength L=256)
   const ocean = new FFTOcean(scene, engine, {
     gridSize: 256,
     domainLength: 256,
     windDirection: new Vector2(1, 1),
-    amplitude: 64,
-    windSpeed: 60,
+    amplitude: 32,
+    windSpeed: 120,
     choppiness: 1,
   });
 

@@ -35,7 +35,7 @@ void main() {
     float jacobian = (1.0 - c * Jxx) * (1.0 - c * Jzz) - (c * Jxz) * (c * Jxz);
 
     // 파도가 자가 교차하거나 수축이 극대화될 때 (jacobian < threshold) 하얀 포말 생성
-    float foamThreshold = 0.5;
+    float foamThreshold = 0.8;
     float foam = clamp((foamThreshold - jacobian) * 1.6, 0.0, 1.0);
 
     // 4. 주요 방향 벡터 계산 (빛, 시선, 반사, 하프 벡터)
@@ -82,8 +82,7 @@ void main() {
     vec3 specular = sunColor * (specWide + specSharp) * sunFacing * (0.6 + 0.4 * fresnel);
 
     // 9. 최종 색상 합성: 포말 합성 (기존 셰이딩 유지)
-    vec3 finalColor = waterBody + foam;
+    vec3 finalColor = log(vec3(foam) + fresnel);
 
     gl_FragColor = vec4(finalColor, 1.0);
 }
-
