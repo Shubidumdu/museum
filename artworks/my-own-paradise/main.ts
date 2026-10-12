@@ -28,12 +28,12 @@ import oceanDepthVertexShader from "./ocean_depth_vertex.glsl?raw";
 import oceanDepthFragmentShader from "./ocean_depth_fragment.glsl?raw";
 import outlinePostProcessShader from "./outline_postprocess.glsl?raw";
 import { createScreentoneMaterial } from "./ScreentoneCelShader.ts";
-
 import bedGlbUrl from "./bed.glb";
 import bedBaseColorUrl from "./bed_BaseColor.png";
 import bedNormalUrl from "./bed_NormalGL.png";
 import bedAOUrl from "./bed_AO.png";
 import { degToRad } from "../../src/utils/math";
+import { ShowInspector } from "@babylonjs/inspector";
 
 DracoCompression.Configuration = {
   decoder: {
@@ -95,13 +95,15 @@ export function createFFTOceanScene(
     degToRad(78),
     degToRad(81.6),
     18.7843,
-    new Vector3(0, 0, 0),
+    new Vector3(0, 1, 0),
     scene,
   );
+
   camera.attachControl(canvas, true);
   camera.wheelPrecision = 25;
   camera.lowerRadiusLimit = 5;
-  camera.upperRadiusLimit = 200;
+  camera.upperRadiusLimit = 32;
+  camera.upperBetaLimit = degToRad(90);
 
   const sunLight = new DirectionalLight(
     "sunLight",
@@ -316,6 +318,8 @@ export function createFFTOceanScene(
     bedRoot.rotation.z = currentRoll;
     bedRoot.rotation.y = Math.PI * 0.25 + Math.sin(t * 0.08) * 0.035;
   });
+
+  ShowInspector(scene);
 
   return scene;
 }
