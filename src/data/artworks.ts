@@ -10,6 +10,8 @@ export interface Artwork {
   slug: string;
   title: LocalizedText;
   description: LocalizedText;
+  previewImage?: string;
+  previewVideo?: string;
 }
 
 export const ARTWORKS: Artwork[] = [
@@ -26,6 +28,8 @@ export const ARTWORKS: Artwork[] = [
       en: `Swept away by the relentless tide, we often lose even the quiet room to pause and breathe.
 Yet, humble and modest as it may be, having this small haven to hold my dreams is profoundly precious.`,
     },
+    previewImage: "/artworks/place-of-refuge/preview.png",
+    previewVideo: "/artworks/place-of-refuge/preview.mp4",
   },
 ];
 

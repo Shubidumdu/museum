@@ -32,20 +32,51 @@ function updateLanguageUI(lang: Language) {
     if (titleEl) {
       titleEl.textContent = getArtworkTitle(artwork, lang);
     }
+    const imgEl = document.querySelector<HTMLImageElement>(
+      `[data-slug="${artwork.slug}"] .card-preview-image`,
+    );
+    if (imgEl) {
+      imgEl.alt = getArtworkTitle(artwork, lang);
+    }
   }
 }
 
 function createCardHtml(artwork: Artwork, lang: Language): string {
+  const imageHtml = artwork.previewImage
+    ? `<img class="card-preview-media card-preview-image" src="${artwork.previewImage}" alt="${getArtworkTitle(artwork, lang)}" loading="lazy" onerror="this.style.display='none'" />`
+    : "";
+  const videoHtml = artwork.previewVideo
+    ? `<video class="card-preview-media card-preview-video" src="${artwork.previewVideo}" muted playsinline loop preload="none" aria-hidden="true"></video>`
+    : "";
+
   return `
     <a href="/artworks/${artwork.slug}/" class="artwork-card" data-slug="${artwork.slug}">
       <div class="card-preview">
-        <canvas class="card-canvas-preview" id="preview-${artwork.slug}" width="400" height="250"></canvas>
+        ${imageHtml}
+        ${videoHtml}
       </div>
       <div class="card-body">
         <h3 class="card-title" data-artwork-title="${artwork.slug}">${getArtworkTitle(artwork, lang)}</h3>
       </div>
     </a>
   `;
+}
+
+function setupCardHoverPreviews() {
+  const cards = document.querySelectorAll<HTMLAnchorElement>(".artwork-card");
+  cards.forEach((card) => {
+    const video = card.querySelector<HTMLVideoElement>(".card-preview-video");
+    if (!video) return;
+
+    card.addEventListener("mouseenter", () => {
+      video.play().catch(() => {});
+    });
+
+    card.addEventListener("mouseleave", () => {
+      video.pause();
+      video.currentTime = 0;
+    });
+  });
 }
 
 function renderApp() {
@@ -89,6 +120,8 @@ function renderApp() {
   langToggleBtn?.addEventListener("click", () => {
     toggleLanguage();
   });
+
+  setupCardHoverPreviews();
 
   onLanguageChange((lang) => {
     updateLanguageUI(lang);
