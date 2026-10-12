@@ -21,6 +21,7 @@ import {
 import "@babylonjs/core/Rendering/depthRendererSceneComponent";
 import "@babylonjs/loaders/glTF";
 import { setupArtworkViewer } from "../../src/components/viewer-shell.ts";
+import { CustomLoadingScreen } from "../../src/components/loading-screen.ts";
 import { FFTOcean } from "./FFTOcean.ts";
 import oceanVertexShader from "./ocean_vertex.glsl?raw";
 import oceanFragmentShader from "./ocean_fragment.glsl?raw";
@@ -66,6 +67,9 @@ async function initializeOceanApp() {
     enableGPUDebugMarkers: true,
   });
   await engine.initAsync();
+
+  engine.loadingScreen = new CustomLoadingScreen("#d03f2c", "/logo.png");
+  engine.displayLoadingUI();
 
   engine.setHardwareScalingLevel(1 / window.devicePixelRatio);
   engine.resize();
@@ -267,7 +271,7 @@ export function createFFTOceanScene(
   bedRoot.scaling.setAll(6.0);
   bedRoot.rotation.y = Math.PI * 0.25;
 
-  ImportMeshAsync(bedGlbUrl, scene)
+  const bedLoadPromise = ImportMeshAsync(bedGlbUrl, scene)
     .then((result) => {
       for (const mesh of result.meshes) {
         if (mesh.getTotalVertices() > 0) {
@@ -282,6 +286,16 @@ export function createFFTOceanScene(
     .catch((err) => {
       console.error("Failed to load bed.glb:", err);
     });
+
+  const sceneReadyPromise = new Promise<void>((resolve) => {
+    scene.executeWhenReady(() => {
+      resolve();
+    });
+  });
+
+  Promise.allSettled([bedLoadPromise, sceneReadyPromise]).then(() => {
+    engine.hideLoadingUI();
+  });
 
   let currentPitch = 0;
   let currentRoll = 0;
