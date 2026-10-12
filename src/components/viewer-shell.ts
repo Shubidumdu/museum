@@ -152,7 +152,7 @@ export function setupArtworkViewer(slug: string, options?: ViewerOptions) {
   const header = document.createElement("header");
   header.className = "viewer-header";
   header.innerHTML = `
-    <a href="/" class="back-btn" id="btnBack" title="${currentLang === "ko" ? "로비로 돌아가기" : "Back to Gallery Lobby"}">
+    <a href="/" class="back-btn" id="btnBack" title="${currentLang === "ko" ? "돌아가기" : "Back"}">
       <span>
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-left preview-icon"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
       </span>
@@ -281,10 +281,7 @@ export function setupArtworkViewer(slug: string, options?: ViewerOptions) {
 
     const btnBack = document.getElementById("btnBack");
     if (btnBack) {
-      btnBack.setAttribute(
-        "title",
-        lang === "ko" ? "로비로 돌아가기" : "Back to Gallery Lobby",
-      );
+      btnBack.setAttribute("title", lang === "ko" ? "돌아가기" : "Back");
     }
 
     const btnFs = document.getElementById("btnFullscreen");
@@ -311,5 +308,85 @@ export function setupArtworkViewer(slug: string, options?: ViewerOptions) {
 
   onLanguageChange((lang) => {
     updateViewerLanguage(lang);
+  });
+}
+
+export interface WebGPUFallbackOptions {
+  customMessage?: {
+    ko: string;
+    en: string;
+  };
+}
+
+export function showWebGPUFallback(options?: WebGPUFallbackOptions) {
+  const existing = document.getElementById("webgpuFallbackOverlay");
+  if (existing) return;
+
+  const overlay = document.createElement("div");
+  overlay.className = "webgpu-fallback-overlay";
+  overlay.id = "webgpuFallbackOverlay";
+
+  const getNoticeContent = (lang: Language) => {
+    if (lang === "ko") {
+      return {
+        badge: "WebGPU 지원 필요",
+        title: "이 기기에서는 WebGPU를 사용할 수 없습니다",
+        desc:
+          options?.customMessage?.ko ??
+          `본 아트워크는 실시간 3D 그래픽 및 연산을 위해 WebGPU 기술을 필요로 합니다.
+현재 접속하신 브라우저 또는 디바이스 환경에서 WebGPU가 지원되지 않아 작품을 렌더링할 수 없습니다.
+
+최신 버전의 Chrome, Edge 등 WebGPU를 지원하는 브라우저 환경에서 관람해 주시기 바랍니다.`,
+        btnText: "돌아가기",
+      };
+    }
+    return {
+      badge: "WebGPU Required",
+      title: "WebGPU is not supported on this device",
+      desc:
+        options?.customMessage?.en ??
+        `This artwork requires WebGPU for real-time 3D graphics and compute rendering.
+It cannot be displayed because your current browser or device environment does not support WebGPU.
+
+Please open this artwork in a browser that supports WebGPU, such as the latest Chrome or Edge.`,
+      btnText: "Return",
+    };
+  };
+
+  const currentLang = getLanguage();
+  const content = getNoticeContent(currentLang);
+
+  overlay.innerHTML = `
+    <div class="webgpu-fallback-card" role="alert">
+      <div class="webgpu-fallback-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
+      </div>
+      <span class="webgpu-fallback-badge" id="fallbackBadge">${content.badge}</span>
+      <h2 class="webgpu-fallback-title" id="fallbackTitle">${content.title}</h2>
+      <p class="webgpu-fallback-desc" id="fallbackDesc">${content.desc}</p>
+      <a href="${import.meta.env.BASE_URL}" class="webgpu-fallback-btn" id="fallbackBtn">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-left preview-icon"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+      </a>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  const plaque = document.getElementById("docentPlaque");
+  if (plaque) {
+    plaque.classList.add("collapsed");
+  }
+
+  onLanguageChange((lang) => {
+    const updated = getNoticeContent(lang);
+    const badgeEl = document.getElementById("fallbackBadge");
+    const titleEl = document.getElementById("fallbackTitle");
+    const descEl = document.getElementById("fallbackDesc");
+    const btnEl = document.getElementById("fallbackBtn");
+
+    if (badgeEl) badgeEl.textContent = updated.badge;
+    if (titleEl) titleEl.textContent = updated.title;
+    if (descEl) descEl.textContent = updated.desc;
+    if (btnEl) btnEl.textContent = updated.btnText;
   });
 }

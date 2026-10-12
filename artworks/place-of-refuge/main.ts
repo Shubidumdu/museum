@@ -20,7 +20,10 @@ import {
 } from "@babylonjs/core";
 import "@babylonjs/core/Rendering/depthRendererSceneComponent";
 import "@babylonjs/loaders/glTF";
-import { setupArtworkViewer } from "../../src/components/viewer-shell.ts";
+import {
+  setupArtworkViewer,
+  showWebGPUFallback,
+} from "../../src/components/viewer-shell.ts";
 import { CustomLoadingScreen } from "../../src/components/loading-screen.ts";
 import { FFTOcean } from "./FFTOcean.ts";
 import oceanVertexShader from "./ocean_vertex.glsl?raw";
@@ -38,38 +41,55 @@ import { degToRad } from "../../src/utils/math";
 
 DracoCompression.Configuration = {
   decoder: {
-    wasmUrl: "/draco/draco_wasm_wrapper_gltf.js",
-    wasmBinaryUrl: "/draco/draco_decoder_gltf.wasm",
-    fallbackUrl: "/draco/draco_decoder_gltf.js",
+    wasmUrl: `${import.meta.env.BASE_URL}draco/draco_wasm_wrapper_gltf.js`,
+    wasmBinaryUrl: `${import.meta.env.BASE_URL}draco/draco_decoder_gltf.wasm`,
+    fallbackUrl: `${import.meta.env.BASE_URL}draco/draco_decoder_gltf.js`,
   },
 };
-
-setupArtworkViewer("place-of-refuge", { audioUrl: oceanAudioUrl });
 
 const canvas = document.getElementById("artworkCanvas") as HTMLCanvasElement;
 
 async function initializeOceanApp() {
-  const isWebGPUSupported =
-    typeof navigator !== "undefined" &&
-    "gpu" in navigator &&
-    (await WebGPUEngine.IsSupportedAsync);
+  let isWebGPUSupported = false;
+  try {
+    isWebGPUSupported =
+      typeof navigator !== "undefined" &&
+      "gpu" in navigator &&
+      (await WebGPUEngine.IsSupportedAsync);
+  } catch {
+    isWebGPUSupported = false;
+  }
 
   if (!isWebGPUSupported) {
-    console.error(
-      "⚠️ WebGPU not available. WebGPU is required for this artwork.",
+    console.warn(
+      "⚠️ WebGPU not available on this device. Displaying fallback screen.",
     );
+    setupArtworkViewer("place-of-refuge");
+    showWebGPUFallback();
     return;
   }
 
-  console.info("⚡ WebGPUEngine enabled for FFT Ocean!");
-  const engine = new WebGPUEngine(canvas, {
-    antialias: false,
-    powerPreference: "high-performance",
-    enableGPUDebugMarkers: true,
-  });
-  await engine.initAsync();
+  setupArtworkViewer("place-of-refuge", { audioUrl: oceanAudioUrl });
 
-  engine.loadingScreen = new CustomLoadingScreen("#d03f2c", "/logo.png");
+  console.info("⚡ WebGPUEngine enabled for FFT Ocean!");
+  let engine: WebGPUEngine;
+  try {
+    engine = new WebGPUEngine(canvas, {
+      antialias: false,
+      powerPreference: "high-performance",
+      enableGPUDebugMarkers: true,
+    });
+    await engine.initAsync();
+  } catch (err) {
+    console.error("Failed to initialize WebGPUEngine:", err);
+    showWebGPUFallback();
+    return;
+  }
+
+  engine.loadingScreen = new CustomLoadingScreen(
+    "#d03f2c",
+    `${import.meta.env.BASE_URL}logo.png`,
+  );
   engine.displayLoadingUI();
 
   engine.setHardwareScalingLevel(1 / window.devicePixelRatio);
