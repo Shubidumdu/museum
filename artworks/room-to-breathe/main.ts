@@ -235,9 +235,6 @@ export function createFFTOceanScene(
   const bedNormalTex = new Texture(bedNormalUrl, scene, false, false);
   const bedAOTex = new Texture(bedAOUrl, scene, false, false);
 
-  const dpr =
-    typeof window !== "undefined" ? window.devicePixelRatio || 1.0 : 1.0;
-
   const bedMaterial = createScreentoneMaterial(
     "bedScreentoneShader",
     scene,
@@ -248,9 +245,19 @@ export function createFFTOceanScene(
       baseColorTexture: bedBaseColorTex,
       normalTexture: bedNormalTex,
       aoTexture: bedAOTex,
-      screentoneDensity: 6 * dpr,
     },
   );
+
+  const updateBedScreentone = () => {
+    const renderWidth = engine.getRenderWidth();
+    const renderHeight = engine.getRenderHeight();
+    const density = Math.max(3.0, (renderHeight / 1080) * 6.0);
+    bedMaterial.setVector2("screenSize", new Vector2(renderWidth, renderHeight));
+    bedMaterial.setFloat("screentoneDensity", density);
+  };
+
+  updateBedScreentone();
+  engine.onResizeObservable.add(updateBedScreentone);
 
   const bedRoot = new TransformNode("bedRoot", scene);
   bedRoot.position.set(0, 0, 0);

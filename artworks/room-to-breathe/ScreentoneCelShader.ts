@@ -2,6 +2,7 @@ import {
   Scene,
   Camera,
   ShaderMaterial,
+  Vector2,
   Vector3,
   Color3,
   Texture,
@@ -53,11 +54,17 @@ export function createScreentoneMaterial(
         "sunDirection",
         "sunColor",
         "screentoneDensity",
+        "screenSize",
       ],
       samplers: ["baseColorMap", "normalMap", "aoMap"],
     },
   );
 
+  const engine = scene.getEngine();
+  mat.setVector2(
+    "screenSize",
+    new Vector2(engine.getRenderWidth(), engine.getRenderHeight()),
+  );
   mat.setVector3("cameraPosition", camera.position);
   mat.setVector3("sunDirection", sunDirection);
   mat.setColor3("sunColor", sunColor);

@@ -13,6 +13,7 @@ uniform sampler2D normalMap;
 uniform sampler2D aoMap;
 
 uniform float screentoneDensity;
+uniform vec2 screenSize;
 
 vec3 perturbNormal(vec3 normal, vec3 worldPos, vec2 uv, vec3 normalSample) {
 	vec3 q0 = dFdx(worldPos);
@@ -56,14 +57,14 @@ void main() {
 	float light = NdotL;
 	float E = clamp((light * 0.70 + 0.30 * ao) * (0.20 + 0.80 * texLuma), 0.0, 1.0);
 
-	vec2 screenPos = gl_FragCoord.xy;
-	float density = max(4.0, screentoneDensity);
+	vec2 screenPos = gl_FragCoord.xy - screenSize * 0.5;
+	float density = max(3.0, screentoneDensity);
 
-	float distH1 = abs(mod(screenPos.x + screenPos.y, density) - density * 0.5);
-	float distH2 = abs(mod(screenPos.x - screenPos.y, density) - density * 0.5);
+	float distH1 = abs(mod(mod(screenPos.x + screenPos.y, density) + density, density) - density * 0.5);
+	float distH2 = abs(mod(mod(screenPos.x - screenPos.y, density) + density, density) - density * 0.5);
 
-	float distH3 = abs(mod(screenPos.x + screenPos.y + density * 0.5, density) - density * 0.5);
-	float distH4 = abs(mod(screenPos.x - screenPos.y + density * 0.5, density) - density * 0.5);
+	float distH3 = abs(mod(mod(screenPos.x + screenPos.y + density * 0.5, density) + density, density) - density * 0.5);
+	float distH4 = abs(mod(mod(screenPos.x - screenPos.y + density * 0.5, density) + density, density) - density * 0.5);
 
 	const vec3 PAPER = vec3(1.0, 1.0, 1.0);
 	const vec3 INK   = vec3(0.0, 0.0, 0.0);
