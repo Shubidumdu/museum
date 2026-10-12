@@ -95,7 +95,7 @@ export function createFFTOceanScene(
   canvas: HTMLCanvasElement,
 ): Scene {
   const scene = new Scene(engine);
-  scene.clearColor = new Color4(0, 0, 0, 1.0);
+  scene.clearColor = new Color4(0, 0, 1, 1.0);
 
   // 1. 카메라 설정 (Orbit 컨트롤)
   const camera = new ArcRotateCamera(
