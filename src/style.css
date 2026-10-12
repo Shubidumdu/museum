@@ -203,6 +203,11 @@ main {
   transition: var(--transition-bounce);
 }
 
+.action-btn > span,
+.back-btn > span {
+  display: inline-flex;
+}
+
 .back-btn:hover,
 .action-btn:hover {
   transform: translateY(-2px) scale(1.06);

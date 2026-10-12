@@ -42,7 +42,7 @@ DracoCompression.Configuration = {
   },
 };
 
-setupArtworkViewer("my-own-paradise");
+setupArtworkViewer("room-to-breathe");
 
 const canvas = document.getElementById("artworkCanvas") as HTMLCanvasElement;
 
@@ -87,6 +87,7 @@ export function createFFTOceanScene(
   canvas: HTMLCanvasElement,
 ): Scene {
   const scene = new Scene(engine);
+  const target = new Vector3(0, 1, 0);
   scene.clearColor = new Color4(0, 0, 1, 1.0);
 
   const camera = new ArcRotateCamera(
@@ -94,11 +95,12 @@ export function createFFTOceanScene(
     degToRad(78),
     degToRad(81.6),
     18.7843,
-    new Vector3(0, 1, 0),
+    target,
     scene,
   );
 
   camera.attachControl(canvas, true);
+  camera.lockedTarget = target;
   camera.wheelPrecision = 25;
   camera.lowerRadiusLimit = 5;
   camera.upperRadiusLimit = 32;
