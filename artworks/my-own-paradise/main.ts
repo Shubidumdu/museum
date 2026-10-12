@@ -17,6 +17,7 @@ import {
   SceneLoader,
   DracoCompression,
   Scalar,
+  ImportMeshAsync,
 } from "@babylonjs/core";
 import "@babylonjs/core/Rendering/depthRendererSceneComponent";
 import "@babylonjs/loaders/glTF";
@@ -55,14 +56,14 @@ async function initializeOceanApp() {
 
   if (!isWebGPUSupported) {
     console.error(
-      "⚠️ WebGPU not available. WebGPU is required for FFT Ocean simulation.",
+      "⚠️ WebGPU not available. WebGPU is required for this artwork.",
     );
     return;
   }
 
   console.info("⚡ WebGPUEngine enabled for FFT Ocean!");
   const engine = new WebGPUEngine(canvas, {
-    antialias: true,
+    antialias: false,
     powerPreference: "high-performance",
     enableGPUDebugMarkers: true,
   });
@@ -115,7 +116,6 @@ export function createFFTOceanScene(
     {
       width: meshSize,
       height: meshSize,
-      updatable: true,
       subdivisions: 256,
     },
     scene,
@@ -126,7 +126,7 @@ export function createFFTOceanScene(
     gridSize: 256,
     domainLength: 256,
     windDirection: new Vector2(1, 1),
-    amplitude: 24,
+    amplitude: 32,
     windSpeed: 120,
     choppiness: 1,
   });
@@ -269,7 +269,7 @@ export function createFFTOceanScene(
   bedRoot.scaling.setAll(6.0);
   bedRoot.rotation.y = Math.PI * 0.25;
 
-  SceneLoader.ImportMeshAsync("", "", bedGlbUrl, scene, undefined, ".glb")
+  ImportMeshAsync(bedGlbUrl, scene)
     .then((result) => {
       for (const mesh of result.meshes) {
         if (mesh.getTotalVertices() > 0) {
@@ -280,7 +280,6 @@ export function createFFTOceanScene(
       if (result.meshes[0]) {
         result.meshes[0].parent = bedRoot;
       }
-      console.info("🛏️ Screentone Cel-Shaded Bed loaded successfully!");
     })
     .catch((err) => {
       console.error("Failed to load bed.glb:", err);
