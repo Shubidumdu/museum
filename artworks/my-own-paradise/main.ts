@@ -33,7 +33,6 @@ import bedBaseColorUrl from "./bed_BaseColor.png";
 import bedNormalUrl from "./bed_NormalGL.png";
 import bedAOUrl from "./bed_AO.png";
 import { degToRad } from "../../src/utils/math";
-import { ShowInspector } from "@babylonjs/inspector";
 
 DracoCompression.Configuration = {
   decoder: {
@@ -318,8 +317,6 @@ export function createFFTOceanScene(
     bedRoot.rotation.z = currentRoll;
     bedRoot.rotation.y = Math.PI * 0.25 + Math.sin(t * 0.08) * 0.035;
   });
-
-  ShowInspector(scene);
 
   return scene;
 }
