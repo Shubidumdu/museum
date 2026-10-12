@@ -69,6 +69,7 @@ async function initializeOceanApp() {
   await engine.initAsync();
 
   engine.setHardwareScalingLevel(1 / window.devicePixelRatio);
+  engine.resize();
 
   const scene = createFFTOceanScene(engine, canvas);
 
@@ -77,6 +78,7 @@ async function initializeOceanApp() {
   });
 
   window.addEventListener("resize", () => {
+    engine.setHardwareScalingLevel(1 / window.devicePixelRatio);
     engine.resize();
   });
 }
@@ -142,11 +144,7 @@ export function createFFTOceanScene(
     },
     {
       attributes: ["position", "uv"],
-      uniforms: [
-        "worldViewProjection",
-        "uvScale",
-        "choppiness",
-      ],
+      uniforms: ["worldViewProjection", "uvScale", "choppiness"],
       samplers: ["displacementMap"],
     },
   );
@@ -167,6 +165,16 @@ export function createFFTOceanScene(
     Constants.TEXTURE_NEAREST_SAMPLINGMODE,
   );
 
+  engine.onResizeObservable.add(() => {
+    const depthMap = depthRenderer.getDepthMap();
+    if (depthMap) {
+      depthMap.resize({
+        width: engine.getRenderWidth(),
+        height: engine.getRenderHeight(),
+      });
+    }
+  });
+
   Effect.ShadersStore["oceanDepthVertexShader"] = oceanDepthVertexShader;
   Effect.ShadersStore["oceanDepthFragmentShader"] = oceanDepthFragmentShader;
 
@@ -179,12 +187,7 @@ export function createFFTOceanScene(
     },
     {
       attributes: ["position", "uv"],
-      uniforms: [
-        "worldViewProjection",
-        "uvScale",
-        "choppiness",
-        "depthValues",
-      ],
+      uniforms: ["worldViewProjection", "uvScale", "choppiness", "depthValues"],
       samplers: ["displacementMap"],
     },
   );
@@ -217,8 +220,8 @@ export function createFFTOceanScene(
     effect.setTexture("depthSampler", depthRenderer.getDepthMap());
     effect.setFloat2(
       "screenSize",
-      outlinePostProcess.width,
-      outlinePostProcess.height,
+      engine.getRenderWidth(),
+      engine.getRenderHeight(),
     );
     effect.setFloat("outlineWidth", 1.2);
     effect.setFloat("depthThreshold", 0.025);
