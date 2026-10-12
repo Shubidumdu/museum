@@ -8,7 +8,7 @@ uniform mat4 worldViewProjection;
 uniform sampler2D displacementMap;
 uniform float uvScale;
 uniform float choppiness;
-uniform vec2 depthValues; // x: minZ, y: maxZ - minZ
+uniform vec2 depthValues;
 
 varying float vDepthMetric;
 
@@ -28,4 +28,3 @@ void main() {
     gl_Position = clipPos;
     vDepthMetric = (clipPos.z + depthValues.x) / depthValues.y;
 }
-

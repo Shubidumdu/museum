@@ -47,9 +47,9 @@ export class FFTOcean {
   hReal: Float32Array;
   hImag: Float32Array;
 
-  packedDisplacement: Float32Array; // [real(Dx+i*Dz), imag(Dx+i*Dz), real(h), imag(h)]
-  packedSlope: Float32Array; // [real(Sx+i*Sz), imag(Sx+i*Sz), 0, 0]
-  packedFoam: Float32Array; // [real(Jxx+i*Jzz), imag(Jxx+i*Jzz), real(Jxz), imag(Jxz)]
+  packedDisplacement: Float32Array;
+  packedSlope: Float32Array;
+  packedFoam: Float32Array;
 
   ifftHelper: IFFT2D;
 
@@ -57,9 +57,9 @@ export class FFTOcean {
   slopeStorageBuffer: StorageBuffer;
   foamStorageBuffer: StorageBuffer;
 
-  displacementTexture: RenderTargetTexture; // R: Dx, G: Dz, B: Dy(h), A: 0
-  slopeTexture: RenderTargetTexture; // R: SlopeX, G: SlopeZ, B: 0, A: 0
-  foamTexture: RenderTargetTexture; // R: Jxx, G: Jzz, B: Jxz, A: 0
+  displacementTexture: RenderTargetTexture;
+  slopeTexture: RenderTargetTexture;
+  foamTexture: RenderTargetTexture;
 
   constructor(
     scene: Scene,
@@ -92,10 +92,9 @@ export class FFTOcean {
     this.hImag = new Float32Array(totalSize);
     this.omega = new Float32Array(totalSize);
 
-    // 4채널(vec4) 패킹 버퍼 할당
-    this.packedDisplacement = new Float32Array(totalSize * 4); // [real(Dx+i*Dz), imag(Dx+i*Dz), real(h), imag(h)]
-    this.packedSlope = new Float32Array(totalSize * 4); // [real(Sx+i*Sz), imag(Sx+i*Sz), 0, 0]
-    this.packedFoam = new Float32Array(totalSize * 4); // [real(Jxx+i*Jzz), imag(Jxx+i*Jzz), real(Jxz), imag(Jxz)]
+    this.packedDisplacement = new Float32Array(totalSize * 4);
+    this.packedSlope = new Float32Array(totalSize * 4);
+    this.packedFoam = new Float32Array(totalSize * 4);
 
     this.dispStorageBuffer = new StorageBuffer(
       this.engine,
@@ -112,7 +111,6 @@ export class FFTOcean {
 
     this.ifftHelper = new IFFT2D(scene, engine, this.N);
 
-    // 4채널 통합 변위 텍스처 (R: Dx, G: Dz, B: Dy, A: 0)
     this.displacementTexture = new RenderTargetTexture(
       "ocean_displacement",
       this.N,
@@ -128,7 +126,6 @@ export class FFTOcean {
       },
     );
 
-    // 4채널 통합 기울기 텍스처 (R: SlopeX, G: SlopeZ, B: 0, A: 0)
     this.slopeTexture = new RenderTargetTexture("ocean_slope", this.N, scene, {
       generateMipMaps: false,
       type: Constants.TEXTURETYPE_FLOAT,
@@ -139,7 +136,6 @@ export class FFTOcean {
       creationFlags: Constants.TEXTURE_CREATIONFLAG_STORAGE,
     });
 
-    // 4채널 통합 Foam 텍스처 (R: Jxx, G: Jzz, B: Jxz, A: 0)
     this.foamTexture = new RenderTargetTexture("ocean_foam", this.N, scene, {
       generateMipMaps: false,
       type: Constants.TEXTURETYPE_FLOAT,
@@ -184,7 +180,6 @@ export class FFTOcean {
         const kSquared = kx * kx + kz * kz;
         const kLength = Math.sqrt(kSquared);
 
-        // 1. 0 주파수(중심점) 완벽 방어
         if (kLength < 1e-6) {
           this.h0Real[idx] = 0.0;
           this.h0Imag[idx] = 0.0;
@@ -192,40 +187,31 @@ export class FFTOcean {
           continue;
         }
 
-        // 2. 방향 단위 벡터 내적
         const kDotW =
           (kx / kLength) * windDirection.x + (kz / kLength) * windDirection.y;
 
-        // 3. Phillips Spectrum 올바른 차수 계산
-        // - 분모는 k^4 (즉 kSquared^2)
-        // - 지수 분모는 (k * Lwind)^2 (즉 kSquared * Lwind^2)
         const kL2 = kSquared * (Lwind * Lwind);
         const decay = Math.exp(-1.0 / kL2) / (kSquared * kSquared);
 
-        // 역풍 억제 및 방향 제곱 항
         let phillips = 0.0;
         if (kDotW > 0.0) {
           phillips = A * decay * (kDotW * kDotW);
         }
 
-        // 4. Box-Muller 가우시안 복소 난수
         const u1 = Math.max(1e-7, Math.random());
         const u2 = Math.random();
         const randStd = Math.sqrt(-2.0 * Math.log(u1));
         const xi_r = randStd * Math.cos(2.0 * Math.PI * u2);
         const xi_i = randStd * Math.sin(2.0 * Math.PI * u2);
 
-        // 5. 초기 진폭 결합
         const amp = Math.sqrt(phillips / 2.0);
         this.h0Real[idx] = xi_r * amp;
         this.h0Imag[idx] = xi_i * amp;
 
-        // 6. 각속도
         this.omega[idx] = Math.sqrt(g * kLength);
       }
     }
 
-    // 부유체(Floating Objects)의 실시간 물리 연산을 위해 전체 파도 중 에너지가 가장 큰 상위 48개 모드 캐싱
     const modeList: DominantWaveMode[] = [];
     for (let m = 0; m < N; m++) {
       for (let n = 0; n < N; n++) {
@@ -268,46 +254,26 @@ export class FFTOcean {
 
       const idx4 = i * 4;
 
-      // 1. 수평 변위(Dx, Dz) 및 수직 높이(Dy) 패킹
-      // 복소 결합: D_xz = Dx + i * Dz
-      // IFFT 후: R 채널 = Dx, G 채널 = Dz, B 채널 = Dy (h_r)
       const kLenSq = kx * kx + kz * kz;
       if (kLenSq > 1e-10) {
         const invK = 1.0 / Math.sqrt(kLenSq);
         const normKx = kx * invK;
         const normKz = kz * invK;
 
-        // D_xz = (Dx_real - Dz_imag) + i*(Dx_imag + Dz_real)
-        // Dx_real = h_i * normKx, Dx_imag = -h_r * normKx
-        // Dz_real = h_i * normKz, Dz_imag = -h_r * normKz
-        // D_xz_real = h_i * normKx - (-h_r * normKz) = h_i * normKx + h_r * normKz
-        // D_xz_imag = -h_r * normKx + h_i * normKz = h_i * normKz - h_r * normKx
         this.packedDisplacement[idx4] = h_i * normKx + h_r * normKz;
         this.packedDisplacement[idx4 + 1] = h_i * normKz - h_r * normKx;
       } else {
         this.packedDisplacement[idx4] = 0.0;
         this.packedDisplacement[idx4 + 1] = 0.0;
       }
-      // 수직 높이 h (Real, Imag) -> IFFT 후 B 채널에 h_r 기록
       this.packedDisplacement[idx4 + 2] = h_r;
       this.packedDisplacement[idx4 + 3] = h_i;
 
-      // 2. 기울기(SlopeX, SlopeZ) 패킹
-      // 복소 결합: S_comb = SlopeX + i * SlopeZ
-      // IFFT 후: R 채널 = SlopeX, G 채널 = SlopeZ
-      // Sx_real = -kx * h_i, Sx_imag = kx * h_r
-      // Sz_real = -kz * h_i, Sz_imag = kz * h_r
-      // S_comb_real = -kx * h_i - (kz * h_r)
-      // S_comb_imag = kx * h_r + (-kz * h_i)
       this.packedSlope[idx4] = -kx * h_i - kz * h_r;
       this.packedSlope[idx4 + 1] = kx * h_r - kz * h_i;
       this.packedSlope[idx4 + 2] = 0.0;
       this.packedSlope[idx4 + 3] = 0.0;
 
-      // 3. 자코비안 편미분(Jxx, Jzz, Jxz) 패킹 (Tessendorf Foam)
-      // dDx/dx = (kx^2 / k) * h, dDz/dz = (kz^2 / k) * h, dDx/dz = (kx * kz / k) * h
-      // 복소 결합: J_comb = Jxx + i * Jzz (IFFT 후 R: Jxx, G: Jzz)
-      // Jxz (IFFT 후 B: Jxz)
       if (kLenSq > 1e-10) {
         const invK = 1.0 / Math.sqrt(kLenSq);
         const kx2_invK = kx * kx * invK;
@@ -326,12 +292,10 @@ export class FFTOcean {
       }
     }
 
-    // 3. GPU StorageBuffer로 데이터 전송
     this.dispStorageBuffer.update(this.packedDisplacement);
     this.slopeStorageBuffer.update(this.packedSlope);
     this.foamStorageBuffer.update(this.packedFoam);
 
-    // 4. WebGPU IFFT 변환 실행! (Displacement 1회 + Slope 1회 + Foam 1회)
     this.ifftHelper.execute(this.dispStorageBuffer, this.displacementTexture);
     this.ifftHelper.execute(this.slopeStorageBuffer, this.slopeTexture);
     this.ifftHelper.execute(this.foamStorageBuffer, this.foamTexture);
@@ -359,18 +323,12 @@ export class FFTOcean {
         const cosW = Math.cos(om);
         const sinW = Math.sin(om);
 
-        // Tessendorf
         this.hReal[idx] = (r1 + r2) * cosW - (i1 + i2) * sinW;
         this.hImag[idx] = (r1 - r2) * sinW + (i1 - i2) * cosW;
       }
     }
   }
 
-  /**
-   * 주어진 월드 X, Z 좌표에서 실시간 파도 높이(Displacement Y),
-   * 수평 변위(Dx, Dz), 및 물리적 표면 법선 벡터(Normal)를 고속 산출합니다.
-   * 버텍스/프래그먼트 셰이더의 파도 변위 및 노멀과 100% 동일하게 일치합니다.
-   */
   getWaterDisplacementAndNormal(
     worldX: number,
     worldZ: number,
@@ -385,7 +343,6 @@ export class FFTOcean {
     const N = this.N;
     const invNorm = 1.0 / (N * N);
 
-    // 월드 좌표 -> 타일링 UV 좌표 (ocean_vertex.glsl 및 CreateGround UV 체계와 1:1 일치)
     const u = ((worldX / meshSize + 0.5) * uvScale) % 1.0;
     const v = ((worldZ / meshSize + 0.5) * uvScale) % 1.0;
     const fracU = u < 0 ? u + 1.0 : u;
@@ -411,21 +368,17 @@ export class FFTOcean {
       const cosP = Math.cos(phi);
       const sinP = Math.sin(phi);
 
-      // 1. 수직 높이 (Dy)
       height += (hr * cosP - hi * sinP) * invNorm;
 
-      // 2. 수평 변위 (Dx, Dz)
       const dCommon = (hi * cosP + hr * sinP) * invNorm;
       dispX -= mode.normKx * dCommon;
       dispZ -= mode.normKz * dCommon;
 
-      // 3. 표면 기울기 (SlopeX, SlopeZ)
       const sCommon = (hr * sinP + hi * cosP) * invNorm;
       slopeX += -mode.kx * sCommon;
       slopeZ += -mode.kz * sCommon;
     }
 
-    // 물리적 법선 벡터 복원 (ocean_fragment.glsl 공식과 100% 일치)
     const slopeScale = uvScale * (this.L / meshSize);
     const normal = new Vector3(
       -slopeX * slopeScale,

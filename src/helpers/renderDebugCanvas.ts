@@ -3,52 +3,29 @@ import { type BaseTexture, type Scene, type Observer } from "@babylonjs/core";
 export type ChannelMode = "rgba" | "r" | "g" | "b" | "a";
 
 export interface RenderDebugCanvasOptions {
-  /** 디버거 창 타이틀 (기본값: 텍스처 이름 또는 'Texture Debugger') */
   title?: string;
-  /** 표시될 캔버스 픽셀 및 디스플레이 크기 (기본값: 256) */
   size?: number;
-  /** 초기 표시 채널 ('rgba' | 'r' | 'g' | 'b' | 'a', 기본값: 'rgba') */
   channel?: ChannelMode;
-  /** sRGB 감마 보정 적용 여부 (기본값: false) */
   sRGB?: boolean;
-  /** 씬 렌더 루프에 맞춰 자동 업데이트 여부 (기본값: true) */
   autoUpdate?: boolean;
-  /** 초기 X 좌표 (기본값: 우측 상단 margin 24px) */
   initialX?: number;
-  /** 초기 Y 좌표 (기본값: 상단 margin 24px) */
   initialY?: number;
-  /** 바빌론 Scene 인스턴스 (생략 시 texture.getScene() 사용) */
   scene?: Scene;
-  /**
-   * RGBA 모드에서 텍스처의 실제 알파(A) 채널을 무시하고 불투명(a = 1.0, 255)으로 고정할지 여부 (기본값: false)
-   */
   opaqueAlpha?: boolean;
-  /** opaqueAlpha의 별칭 (기본값: false) */
   forceAlphaOne?: boolean;
 }
 
 export interface DebugCanvasHandle {
-  /** 수동 텍스처 리드백 및 캔버스 갱신 */
   update: () => Promise<void>;
-  /** 디버거 창 닫기 및 옵저버/DOM 메모리 해제 */
   dispose: () => void;
-  /** 디버거 표시 여부 토글 */
   setVisible: (visible: boolean) => void;
-  /** 채널 모드 변경 ('rgba' | 'r' | 'g' | 'b' | 'a') */
   setChannel: (channel: ChannelMode) => void;
-  /** sRGB 변환 활성화 여부 설정 */
   setSRGB: (enabled: boolean) => void;
-  /** 알파 1.0(불투명) 고정 여부 설정 */
   setOpaqueAlpha: (enabled: boolean) => void;
-  /** 최상위 컨테이너 요소 */
   container: HTMLDivElement;
-  /** 텍스처 렌더링 캔버스 */
   canvas: HTMLCanvasElement;
 }
 
-/**
- * 선형 값(Linear [0, 1])을 표준 sRGB 공간으로 변환
- */
 function linearToSRGB(c: number): number {
   if (c <= 0.0031308) {
     return c * 12.92;
@@ -56,36 +33,18 @@ function linearToSRGB(c: number): number {
   return 1.055 * Math.pow(c, 1.0 / 2.4) - 0.055;
 }
 
-/**
- * 부동소수점 값을 [0, 1] 범위로 클램핑 후 8비트 정수(0~255)로 변환
- */
 function floatToByte(val: number, applySRGB: boolean): number {
   const clamped = Math.max(0, Math.min(1, val));
   const converted = applySRGB ? linearToSRGB(clamped) : clamped;
   return Math.round(converted * 255);
 }
 
-/**
- * 8비트 정수(0~255) 값을 sRGB 토글 상태에 맞춰 변환
- */
 function uint8ToByte(byteVal: number, applySRGB: boolean): number {
   if (!applySRGB) return byteVal;
   const norm = byteVal / 255;
   return Math.round(linearToSRGB(norm) * 255);
 }
 
-/**
- * 주어진 텍스처의 내용을 실시간으로 읽어와 화면 위에 자유롭게 드래그할 수 있는
- * 플로팅 디버그 캔버스 창을 띄웁니다.
- *
- * - RGBA 전체 컬러 뷰 및 R/G/B/A 개별 채널 단독 뷰 지원
- * - sRGB 감마 보정 on/off 전환 지원
- * - 불필요한 장식(GPU READ 레이블, 컬러맵 프리셋, 임의 변위값 체크 등)을 제거한 직관적인 UI
- *
- * @param texture 디버깅할 Babylon.js 텍스처 (RenderTargetTexture, Texture 등)
- * @param options 창 제목, 크기, 초기 위치, 초기 채널 및 sRGB 설정
- * @returns 디버거 핸들 컨트롤러
- */
 export function renderDebugCanvas(
   texture: BaseTexture,
   options?: RenderDebugCanvasOptions,
@@ -98,7 +57,6 @@ export function renderDebugCanvas(
   const textureName = texture.name || "Texture";
   const titleText = options?.title ?? `${textureName}`;
 
-  // 1. 플로팅 컨테이너 DOM 생성 및 스타일 설정
   const container = document.createElement("div");
   container.className = "texture-debug-window";
   Object.assign(container.style, {
@@ -117,7 +75,6 @@ export function renderDebugCanvas(
     transition: "box-shadow 0.2s ease",
   });
 
-  // 초기 위치 지정 (기본: 화면 우측 상단)
   if (options?.initialX !== undefined) {
     container.style.left = `${options.initialX}px`;
   } else {
@@ -130,7 +87,6 @@ export function renderDebugCanvas(
     container.style.top = "24px";
   }
 
-  // 2. 드래그 가능한 헤더 바 구성
   const header = document.createElement("div");
   header.className = "texture-debug-header";
   Object.assign(header.style, {
@@ -179,7 +135,6 @@ export function renderDebugCanvas(
   titleGroup.appendChild(titleSpan);
   titleGroup.appendChild(badgeSpan);
 
-  // 헤더 컨트롤 버튼 그룹 (최소화, 닫기)
   const windowActions = document.createElement("div");
   Object.assign(windowActions.style, {
     display: "flex",
@@ -221,7 +176,6 @@ export function renderDebugCanvas(
   header.appendChild(windowActions);
   container.appendChild(header);
 
-  // 3. 디버거 툴바 (채널 선택: RGBA / R / G / B / A 및 sRGB 토글)
   const toolbar = document.createElement("div");
   toolbar.className = "texture-debug-toolbar";
   Object.assign(toolbar.style, {
@@ -340,7 +294,6 @@ export function renderDebugCanvas(
   toolbar.appendChild(toggleGroup);
   container.appendChild(toolbar);
 
-  // 4. 디버그 캔버스 및 바디 구성
   const body = document.createElement("div");
   body.className = "texture-debug-body";
   Object.assign(body.style, {
@@ -357,7 +310,6 @@ export function renderDebugCanvas(
     width: `${size}px`,
     height: `${size}px`,
     backgroundColor: "#0b0f17",
-    // 투명 채널 검증을 위한 서브틀한 체커보드 배경
     backgroundImage: `
       linear-gradient(45deg, #161d2b 25%, transparent 25%),
       linear-gradient(-45deg, #161d2b 25%, transparent 25%),
@@ -375,7 +327,6 @@ export function renderDebugCanvas(
   body.appendChild(canvas);
   container.appendChild(body);
 
-  // 5. 드래그 앤 드롭 구현 (Pointer Events)
   let isDragging = false;
   let dragStartX = 0;
   let dragStartY = 0;
@@ -426,7 +377,6 @@ export function renderDebugCanvas(
       try {
         header.releasePointerCapture(e.pointerId);
       } catch {
-        // 이미 해제된 경우 무시
       }
       header.style.cursor = "grab";
     }
@@ -435,7 +385,6 @@ export function renderDebugCanvas(
   header.addEventListener("pointerup", stopDrag);
   header.addEventListener("pointercancel", stopDrag);
 
-  // 6. 창 최소화 인터랙션
   let isCollapsed = false;
   collapseBtn.addEventListener("click", () => {
     isCollapsed = !isCollapsed;
@@ -444,7 +393,6 @@ export function renderDebugCanvas(
     collapseBtn.textContent = isCollapsed ? "+" : "−";
   });
 
-  // 7. 픽셀 데이터 렌더링 함수
   let cachedImageData: ImageData | null = null;
   let lastPixelBuffer: ArrayBufferView | null = null;
   const ctx = canvas.getContext("2d");
@@ -560,7 +508,6 @@ export function renderDebugCanvas(
     }
   };
 
-  // 8. 텍스처 리드백 & 비동기 갱신 루프
   let isUpdating = false;
 
   const update = async (): Promise<void> => {
@@ -580,10 +527,8 @@ export function renderDebugCanvas(
     }
   };
 
-  // 초기 툴바 스타일 동기화
   updateToolbarButtons();
 
-  // 9. 씬 렌더 옵저버 등록 (자동 갱신)
   let renderObserver: Observer<Scene> | null = null;
   const targetScene = options?.scene ?? texture.getScene();
 
@@ -593,7 +538,6 @@ export function renderDebugCanvas(
     });
   }
 
-  // DOM을 document.body에 마운트
   document.body.appendChild(container);
 
   const dispose = () => {

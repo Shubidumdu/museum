@@ -1,5 +1,4 @@
 :root {
-  /* Colors */
   --color-bg: #f0ad4e;
   --color-surface: #ffffff;
   --color-accent: #d03f2c;
@@ -8,24 +7,21 @@
   --color-text-inverse: #ffffff;
   --color-divider: rgba(0, 0, 0, 0.12);
 
-  /* Typography */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', Menlo, Monaco, Consolas, monospace;
 
-  --text-xs: 0.75rem;    /* 12px */
-  --text-sm: 0.875rem;   /* 14px */
-  --text-base: 1rem;     /* 16px */
-  --text-lg: 1.25rem;    /* 20px */
-  --text-xl: 1.5rem;     /* 24px */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.5rem;
 
-  /* Borders & Shadows (Neo-brutalism) */
   --border-width: 2px;
   --border-thick: var(--border-width) solid var(--color-border);
   --border-offset: 6px;
   --radius-md: 12px;
   --radius-pill: 9999px;
 
-  /* Transitions */
   --transition-bounce: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   --transition-base: 0.2s ease;
 }
@@ -61,9 +57,6 @@ main {
   flex: 1;
 }
 
-/* =========================================
-  Museum Header
-   ========================================= */
 .museum-header {
   background: var(--color-accent);
   border-bottom: var(--border-thick);
@@ -89,9 +82,6 @@ main {
   display: block;
 }
 
-/* =========================================
-  Gallery Section
-   ========================================= */
 .gallery-section {
   max-width: 1400px;
   margin: 0 auto;
@@ -115,9 +105,6 @@ main {
   gap: 2.5rem;
 }
 
-/* =========================================
-  Artwork Card
-   ========================================= */
 .artwork-card {
   position: relative;
   background: var(--color-surface);
@@ -167,9 +154,6 @@ main {
   font-weight: 500;
 }
 
-/* =========================================
-   Museum Footer
-   ========================================= */
 .museum-footer {
   background: var(--color-border);
   color: var(--color-text-inverse);
@@ -184,9 +168,6 @@ main {
   width: 100%;
 }
 
-/* =========================================
-  Artwork Detail Page Shared Styles
-   ========================================= */
 .viewer-header {
   position: fixed;
   top: 0;
@@ -227,7 +208,6 @@ main {
   transform: translateY(-2px) scale(1.06);
 }
 
-/* Artwork Canvas Wrapper */
 .canvas-stage {
   flex: 1;
   position: relative;
@@ -246,7 +226,6 @@ main {
   height: 100%;
 }
 
-/* Plaque / Docent Panel */
 .docent-plaque {
   position: fixed;
   bottom: 1.5rem;
@@ -300,9 +279,6 @@ main {
   line-height: 1.6;
 }
 
-/* =========================================
-  Responsive Design
-   ========================================= */
 @media (max-width: 768px) {
   .gallery-section {
     padding: 1.5rem 1rem 3rem;

@@ -10,7 +10,6 @@ export function setupArtworkViewer(slug: string) {
 
   document.title = `${artwork.title} | Shubidumdu Museum`;
 
-  // Header
   const header = document.createElement("header");
   header.className = "viewer-header";
   header.innerHTML = `
@@ -25,7 +24,6 @@ export function setupArtworkViewer(slug: string) {
   `;
   document.body.prepend(header);
 
-  // Plaque
   const plaque = document.createElement("aside");
   plaque.className = "docent-plaque";
   plaque.id = "docentPlaque";
@@ -42,7 +40,6 @@ export function setupArtworkViewer(slug: string) {
   `;
   document.body.appendChild(plaque);
 
-  // Interactions
   const plaqueHeader = document.getElementById("plaqueHeader");
   const plaqueToggle = document.getElementById("plaqueToggle");
   let isCollapsed = false;
@@ -55,7 +52,6 @@ export function setupArtworkViewer(slug: string) {
 
   plaqueHeader?.addEventListener("click", togglePlaque);
 
-  // Fullscreen
   const btnFullscreen = document.getElementById("btnFullscreen");
   btnFullscreen?.addEventListener("click", () => {
     if (!document.fullscreenElement) {

@@ -25,7 +25,7 @@ fn main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid
 
     workgroupBarrier();
 
-    for (var s: u32 = 1u; s <= uniforms.log2N; s = s + 1u) {
+    for(var s: u32 = 1u; s <= uniforms.log2N; s = s + 1u) {
         let m = 1u << s;
         let halfM = m >> 1u;
         let k = tid % halfM;
@@ -41,11 +41,9 @@ fn main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid
             let u = s_val[uIdx];
             let v = s_val[vIdx];
 
-            // 1번째 복소 신호 (xy)
             let t1_R = v.x * cosW - v.y * sinW;
             let t1_I = v.x * sinW + v.y * cosW;
 
-            // 2번째 복소 신호 (zw)
             let t2_R = v.z * cosW - v.w * sinW;
             let t2_I = v.z * sinW + v.w * cosW;
 
@@ -57,7 +55,6 @@ fn main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid
         workgroupBarrier();
     }
 
-    // 정규화 및 (-1)^(x+y) 주파수 중심 이동 부호 보정
     let x = col;
     let y = tid;
     let sign = select(1.0, -1.0, ((x + y) & 1u) == 1u);
@@ -65,6 +62,5 @@ fn main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid
 
     let finalVal = (s_val[tid] * sign) / normFactor;
 
-    // R: 1번째 실수, G: 1번째 허수, B: 2번째 실수, A: 2번째 허수
     textureStore(outputTex, vec2<u32>(col, tid), finalVal);
 }

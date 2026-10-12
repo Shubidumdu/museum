@@ -2,10 +2,6 @@ import { defineConfig } from 'vite';
 import { resolve, join } from 'node:path';
 import { existsSync, readdirSync } from 'node:fs';
 
-/**
- * Automatically scan the `artworks/` directory and register each
- * `artworks/[artwork-name]/index.html` as an entry point for Vite MPA.
- */
 function getArtworkEntries(): Record<string, string> {
   const rootDir = process.cwd();
   const artworksDir = resolve(rootDir, 'artworks');

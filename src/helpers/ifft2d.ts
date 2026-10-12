@@ -15,7 +15,6 @@ export class IFFT2D {
   private horizontalCS: ComputeShader;
   private verticalCS: ComputeShader;
 
-  // 중간 연산용 Storage Texture
   private intermediateTex: RenderTargetTexture;
 
   public readonly N: number;
@@ -31,7 +30,6 @@ export class IFFT2D {
     this.N = N;
     this.log2N = Math.log2(N);
 
-    // 1. 중간 Storage Texture 생성 (WebGPU Storage Binding 지원)
     this.intermediateTex = new RenderTargetTexture(
       "ifft_intermediate",
       N,
@@ -47,7 +45,6 @@ export class IFFT2D {
       },
     );
 
-    // 2. Uniform Buffer 생성 및 설정
     this.uniformsUBO = new UniformBuffer(engine);
     this.uniformsUBO.addUniform("N", 1);
     this.uniformsUBO.addUniform("log2N", 1);
@@ -57,7 +54,6 @@ export class IFFT2D {
     this.uniformsUBO.updateUInt("log2N", this.log2N);
     this.uniformsUBO.update();
 
-    // 3. Compute Shader 인스턴스 빌드
     this.horizontalCS = new ComputeShader(
       "horizontalIFFT_CS",
       engine,
@@ -87,19 +83,14 @@ export class IFFT2D {
     this.verticalCS.setUniformBuffer("uniforms", this.uniformsUBO);
   }
 
-  /**
-   * 주파수 데이터를 담은 StorageBuffer를 받아 2D IFFT를 실행하고 targetTexture에 높이 맵을 기록합니다.
-   */
   public execute(
     inputSpectrumBuffer: StorageBuffer,
     targetTexture: RenderTargetTexture,
   ): void {
-    // 1. 가로 패스 (Row IFFT): StorageBuffer -> intermediateTex
     this.horizontalCS.setStorageBuffer("inputSpectrum", inputSpectrumBuffer);
     this.horizontalCS.setStorageTexture("outputTex", this.intermediateTex);
     this.horizontalCS.dispatch(this.N, 1, 1);
 
-    // 2. 세로 패스 (Column IFFT): intermediateTex -> targetTexture
     this.verticalCS.setStorageTexture("inputTex", this.intermediateTex);
     this.verticalCS.setStorageTexture("outputTex", targetTexture);
     this.verticalCS.dispatch(this.N, 1, 1);

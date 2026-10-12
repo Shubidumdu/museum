@@ -19,15 +19,13 @@ fn main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid
     let tid = lid.x;
     let row = wid.x;
 
-    // Bit-reversal 인덱스로 공유 메모리에 적재 (vec4 채널 전체)
     let revIdx = reverseBits(tid) >> (32u - uniforms.log2N);
     let val = inputSpectrum[row * uniforms.N + tid];
     s_val[revIdx] = val;
 
     workgroupBarrier();
 
-    // Cooley-Tukey Butterfly (4채널 / 2개 복소수 동시 연산)
-    for (var s: u32 = 1u; s <= uniforms.log2N; s = s + 1u) {
+    for(var s: u32 = 1u; s <= uniforms.log2N; s = s + 1u) {
         let m = 1u << s;
         let halfM = m >> 1u;
         let k = tid % halfM;
@@ -36,18 +34,16 @@ fn main(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid
         let vIdx = uIdx + halfM;
 
         if tid < 128u {
-            let angle = 2.0 * PI * f32(k) / f32(m); // IFFT: +angle
+            let angle = 2.0 * PI * f32(k) / f32(m);
             let cosW = cos(angle);
             let sinW = sin(angle);
 
             let u = s_val[uIdx];
             let v = s_val[vIdx];
 
-            // 1번째 복소 신호 (xy: real, imag)
             let t1_R = v.x * cosW - v.y * sinW;
             let t1_I = v.x * sinW + v.y * cosW;
 
-            // 2번째 복소 신호 (zw: real, imag)
             let t2_R = v.z * cosW - v.w * sinW;
             let t2_I = v.z * sinW + v.w * cosW;
 
