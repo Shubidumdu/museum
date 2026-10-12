@@ -1,16 +1,41 @@
+import type { Language } from "../utils/i18n.ts";
+
+export interface LocalizedText {
+  ko: string;
+  en: string;
+}
+
 export interface Artwork {
   id: string;
   slug: string;
-  title: string;
-  description: string;
+  title: LocalizedText;
+  description: LocalizedText;
 }
 
 export const ARTWORKS: Artwork[] = [
   {
-    id: "room-to-breathe",
-    slug: "room-to-breathe",
-    title: "Room to Breathe",
-    description:
-      "BabylonJS 3D 기반의 공간 시각화. 부유하는 다면체 코어와 그 주위를 공전하는 링 및 위성들이 이루는 미니멀한 3D 가상 세계입니다.",
+    id: "place-of-refuge",
+    slug: "place-of-refuge",
+    title: {
+      ko: "피난처",
+      en: "Place of Refuge",
+    },
+    description: {
+      ko: `끊임없는 흐름에 휩쓸리다 보면, 깊이 사유하고 온전히 숨 쉴 수 있는 틈조차 잃어버리곤 한다.
+하찮고 보잘것없지만, 꿈을 품을 수 있는 이 작은 안식처가 존재한다는 것만으로도 얼마나 소중한지 모른다.`,
+      en: `Swept away by the relentless tide, we often lose even the quiet room to pause and breathe.
+Yet, humble and modest as it may be, having this small haven to hold my dreams is profoundly precious.`,
+    },
   },
 ];
+
+export function getArtworkTitle(artwork: Artwork, lang: Language): string {
+  return artwork.title[lang];
+}
+
+export function getArtworkDescription(
+  artwork: Artwork,
+  lang: Language,
+): string {
+  return artwork.description[lang];
+}

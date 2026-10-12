@@ -42,7 +42,7 @@ DracoCompression.Configuration = {
   },
 };
 
-setupArtworkViewer("room-to-breathe");
+setupArtworkViewer("place-of-refuge");
 
 const canvas = document.getElementById("artworkCanvas") as HTMLCanvasElement;
 
@@ -252,7 +252,10 @@ export function createFFTOceanScene(
     const renderWidth = engine.getRenderWidth();
     const renderHeight = engine.getRenderHeight();
     const density = Math.max(3.0, (renderHeight / 1080) * 6.0);
-    bedMaterial.setVector2("screenSize", new Vector2(renderWidth, renderHeight));
+    bedMaterial.setVector2(
+      "screenSize",
+      new Vector2(renderWidth, renderHeight),
+    );
     bedMaterial.setFloat("screentoneDensity", density);
   };
 
