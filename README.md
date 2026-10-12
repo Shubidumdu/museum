@@ -1,4 +1,4 @@
-# 🏛️ Shubidumdu Museum (Atelier Museum)
+# 🏛️ Shubidumdu Museum
 
 Babylon.js를 기반으로 구축된 3D 인터랙티브 디지털 아트워크 전시 플랫폼입니다.  
 Vite의 멀티페이지(MPA) 아키텍처 위에서 각 아트워크가 독립된 3D 씬과 셰이더 파이프라인으로 구동됩니다.
@@ -7,7 +7,7 @@ Vite의 멀티페이지(MPA) 아키텍처 위에서 각 아트워크가 독립�
 
 ## 📄 저작권 및 라이선스 (Copyright & Licenses)
 
-Copyright © 2026 Won Gyo Seo (Shubidumdu Studio). All rights reserved.
+Copyright © 2026 Won Gyo Seo (Shubidumdu). All rights reserved.
 
 1. **고유 창작물 (Original Works)**:
    - 본 프로젝트의 소스 코드, 컴퓨트/렌더 셰이더, 소프트웨어 아키텍처, 디자인 및 전체적인 예술적 구성(Compilation)에 대한 모든 권리는 원작자(Seo Won Gyo / Shubidumdu Studio)에게 귀속됩니다.
