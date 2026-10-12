@@ -345,6 +345,65 @@ p {
   line-height: 1.6;
 }
 
+.plaque-credits {
+  margin-top: 0.875rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed var(--color-divider);
+  font-size: var(--text-xs);
+  color: rgba(0, 0, 0, 0.75);
+  line-height: 1.5;
+}
+
+.plaque-credits-label {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--color-text);
+}
+
+.plaque-credits-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.plaque-credit-item {
+  word-break: break-word;
+}
+
+.plaque-credit-item a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: opacity var(--transition-base);
+}
+
+.plaque-credit-item a:hover {
+  opacity: 0.6;
+}
+
+.plaque-credit-asset {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+.plaque-credit-license {
+  display: inline-block;
+  background: rgba(0, 0, 0, 0.06);
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  margin-left: 0.25rem;
+}
+
 @media (max-width: 768px) {
   .museum-header .header-controls {
     right: 0.75rem;

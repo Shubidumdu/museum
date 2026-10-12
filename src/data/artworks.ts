@@ -5,11 +5,23 @@ export interface LocalizedText {
   en: string;
 }
 
+export interface ArtworkCredit {
+  assetName?: string;
+  sourceTitle?: string;
+  sourceUrl?: string;
+  author: string;
+  authorUrl?: string;
+  license: string;
+  licenseUrl?: string;
+  text?: string;
+}
+
 export interface Artwork {
   id: string;
   slug: string;
   title: LocalizedText;
   description: LocalizedText;
+  credits?: ArtworkCredit[];
   previewImage?: string;
   previewVideo?: string;
 }
@@ -30,6 +42,16 @@ Yet, humble and modest as it may be, having this small haven to hold my dreams i
     },
     previewImage: "/artworks/place-of-refuge/preview.png",
     previewVideo: "/artworks/place-of-refuge/preview.mp4",
+    credits: [
+      {
+        assetName: "3D Model",
+        sourceTitle: "Old Bed",
+        author: "donnichols",
+        license: "CC BY 4.0",
+        sourceUrl:
+          "https://sketchfab.com/3d-models/old-bed-210be84bcb5449f5a9f66a923c8ae307",
+      },
+    ],
   },
 ];
 

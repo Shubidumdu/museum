@@ -3,6 +3,7 @@ import {
   ARTWORKS,
   getArtworkTitle,
   getArtworkDescription,
+  type ArtworkCredit,
 } from "../data/artworks.ts";
 import {
   getLanguage,
@@ -18,6 +19,76 @@ export interface ViewerOptions {
 
 const volumeOnSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-volume-2 preview-icon"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
 const volumeOffSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-volume-x preview-icon"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="22" x2="16" y1="9" y2="15"/><line x1="16" x2="22" y1="9" y2="15"/></svg>`;
+
+function getLicenseUrl(
+  license: string,
+  customUrl?: string,
+): string | undefined {
+  if (customUrl) return customUrl;
+  const normalized = license.trim().toLowerCase();
+  if (normalized.includes("cc by-sa"))
+    return "https://creativecommons.org/licenses/by-sa/4.0/";
+  if (normalized.includes("cc by-nc-nd"))
+    return "https://creativecommons.org/licenses/by-nc-nd/4.0/";
+  if (normalized.includes("cc by-nc-sa"))
+    return "https://creativecommons.org/licenses/by-nc-sa/4.0/";
+  if (normalized.includes("cc by-nc"))
+    return "https://creativecommons.org/licenses/by-nc/4.0/";
+  if (normalized.includes("cc by-nd"))
+    return "https://creativecommons.org/licenses/by-nd/4.0/";
+  if (normalized.includes("cc by") || normalized === "cc-by")
+    return "https://creativecommons.org/licenses/by/4.0/";
+  if (normalized === "cc0" || normalized.includes("public domain"))
+    return "https://creativecommons.org/publicdomain/zero/1.0/";
+  return undefined;
+}
+
+function renderCreditItem(credit: ArtworkCredit): string {
+  if (credit.text) {
+    return `<li class="plaque-credit-item">${credit.text}</li>`;
+  }
+
+  const assetPrefix = credit.assetName
+    ? `<span class="plaque-credit-asset">[${credit.assetName}]</span> `
+    : "";
+
+  const titlePart = credit.sourceTitle
+    ? credit.sourceUrl
+      ? `<a href="${credit.sourceUrl}" target="_blank" rel="noopener noreferrer">"${credit.sourceTitle}"</a>`
+      : `"${credit.sourceTitle}"`
+    : "";
+
+  const authorPart = credit.authorUrl
+    ? `<a href="${credit.authorUrl}" target="_blank" rel="noopener noreferrer">${credit.author}</a>`
+    : credit.author;
+
+  const byPart = titlePart ? ` by ${authorPart}` : authorPart;
+
+  const licenseUrl = getLicenseUrl(credit.license, credit.licenseUrl);
+  const licenseLink = licenseUrl
+    ? `<a href="${licenseUrl}" target="_blank" rel="noopener noreferrer">${credit.license}</a>`
+    : credit.license;
+
+  const licensePart = `<span class="plaque-credit-license">${licenseLink}</span>`;
+
+  return `<li class="plaque-credit-item">${assetPrefix}${titlePart}${byPart} ${licensePart}</li>`;
+}
+
+function renderCreditsHtml(
+  credits: ArtworkCredit[] | undefined,
+  lang: Language,
+): string {
+  if (!credits || credits.length === 0) return "";
+  const label = lang === "ko" ? "크레딧" : "Credits";
+  return `
+    <div class="plaque-credits" id="plaqueCredits">
+      <span class="plaque-credits-label">${label}</span>
+      <ul class="plaque-credits-list">
+        ${credits.map((c) => renderCreditItem(c)).join("")}
+      </ul>
+    </div>
+  `;
+}
 
 export function setupArtworkViewer(slug: string, options?: ViewerOptions) {
   const artwork = ARTWORKS.find((a) => a.slug === slug);
@@ -87,12 +158,12 @@ export function setupArtworkViewer(slug: string, options?: ViewerOptions) {
       </span>
     </a>
     <div class="viewer-controls">
-      ${audioButtonHtml}
       <button class="action-btn lang-toggle-btn" id="viewerLangToggle" type="button" aria-label="Toggle language" title="${currentLang === "ko" ? "언어 변경" : "Change language"}">
         <span class="lang-opt lang-opt-ko ${currentLang === "ko" ? "active" : ""}">KO</span>
         <span class="lang-divider">/</span>
         <span class="lang-opt lang-opt-en ${currentLang === "en" ? "active" : ""}">EN</span>
       </button>
+      ${audioButtonHtml}
       <button class="action-btn" id="btnFullscreen" title="${currentLang === "ko" ? "전체화면" : "Toggle Fullscreen"}">
         <span>
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-fullscreen preview-icon"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><rect width="10" height="8" x="7" y="8" rx="1"/></svg>
@@ -116,6 +187,7 @@ export function setupArtworkViewer(slug: string, options?: ViewerOptions) {
     </div>
     <div class="plaque-content" id="plaqueContent">
       <p id="plaqueDescription">${getArtworkDescription(artwork, currentLang)}</p>
+      ${renderCreditsHtml(artwork.credits, currentLang)}
     </div>
   `;
   document.body.appendChild(plaque);
@@ -159,8 +231,12 @@ export function setupArtworkViewer(slug: string, options?: ViewerOptions) {
     btnAudio.setAttribute(
       "title",
       isAudioPlaying
-        ? (lang === "ko" ? "소리 끄기" : "Mute")
-        : (lang === "ko" ? "소리 켜기" : "Unmute"),
+        ? lang === "ko"
+          ? "소리 끄기"
+          : "Mute"
+        : lang === "ko"
+          ? "소리 켜기"
+          : "Unmute",
     );
     iconSpan.innerHTML = isAudioPlaying ? volumeOnSvg : volumeOffSvg;
   }
@@ -194,6 +270,13 @@ export function setupArtworkViewer(slug: string, options?: ViewerOptions) {
     const descEl = document.getElementById("plaqueDescription");
     if (descEl) {
       descEl.textContent = getArtworkDescription(artwork, lang);
+    }
+
+    const creditsLabel = document.querySelector(
+      "#plaqueCredits .plaque-credits-label",
+    );
+    if (creditsLabel) {
+      creditsLabel.textContent = lang === "ko" ? "크레딧" : "Credits";
     }
 
     const btnBack = document.getElementById("btnBack");
