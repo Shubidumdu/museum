@@ -3,7 +3,6 @@ precision highp float;
 attribute vec3 position;
 attribute vec2 uv;
 
-uniform mat4 world;
 uniform mat4 worldViewProjection;
 uniform sampler2D displacementMap;
 uniform float uvScale;

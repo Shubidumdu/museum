@@ -49,20 +49,12 @@ export class FFTOcean {
   omega: Float32Array;
   hReal: Float32Array;
   hImag: Float32Array;
-
   packedDisplacement: Float32Array;
-  packedSlope: Float32Array;
-  packedFoam: Float32Array;
 
   ifftHelper: IFFT2D;
 
   dispStorageBuffer: StorageBuffer;
-  slopeStorageBuffer: StorageBuffer;
-  foamStorageBuffer: StorageBuffer;
-
   displacementTexture: RenderTargetTexture;
-  slopeTexture: RenderTargetTexture;
-  foamTexture: RenderTargetTexture;
 
   constructor(
     scene: Scene,
@@ -98,22 +90,11 @@ export class FFTOcean {
     this.omega = new Float32Array(totalSize);
 
     this.packedDisplacement = new Float32Array(totalSize * 4);
-    this.packedSlope = new Float32Array(totalSize * 4);
-    this.packedFoam = new Float32Array(totalSize * 4);
 
     this.dispStorageBuffer = new StorageBuffer(
       this.engine,
       this.packedDisplacement.byteLength,
     );
-    this.slopeStorageBuffer = new StorageBuffer(
-      this.engine,
-      this.packedSlope.byteLength,
-    );
-    this.foamStorageBuffer = new StorageBuffer(
-      this.engine,
-      this.packedFoam.byteLength,
-    );
-
     this.ifftHelper = new IFFT2D(scene, engine, this.N);
 
     this.displacementTexture = new RenderTargetTexture(
@@ -130,32 +111,8 @@ export class FFTOcean {
       },
     );
 
-    this.slopeTexture = new RenderTargetTexture("ocean_slope", this.N, scene, {
-      generateMipMaps: false,
-      type: Constants.TEXTURETYPE_FLOAT,
-      format: Constants.TEXTUREFORMAT_RGBA,
-      generateDepthBuffer: false,
-      generateStencilBuffer: false,
-      creationFlags: Constants.TEXTURE_CREATIONFLAG_STORAGE,
-    });
-
-    this.foamTexture = new RenderTargetTexture("ocean_foam", this.N, scene, {
-      generateMipMaps: false,
-      type: Constants.TEXTURETYPE_FLOAT,
-      format: Constants.TEXTUREFORMAT_RGBA,
-      generateDepthBuffer: false,
-      generateStencilBuffer: false,
-      creationFlags: Constants.TEXTURE_CREATIONFLAG_STORAGE,
-    });
-
     this.displacementTexture.wrapU = Constants.TEXTURE_WRAP_ADDRESSMODE;
     this.displacementTexture.wrapV = Constants.TEXTURE_WRAP_ADDRESSMODE;
-
-    this.slopeTexture.wrapU = Constants.TEXTURE_WRAP_ADDRESSMODE;
-    this.slopeTexture.wrapV = Constants.TEXTURE_WRAP_ADDRESSMODE;
-
-    this.foamTexture.wrapU = Constants.TEXTURE_WRAP_ADDRESSMODE;
-    this.foamTexture.wrapV = Constants.TEXTURE_WRAP_ADDRESSMODE;
 
     this.initSpectrum();
   }
@@ -272,37 +229,10 @@ export class FFTOcean {
       }
       this.packedDisplacement[idx4 + 2] = h_r;
       this.packedDisplacement[idx4 + 3] = h_i;
-
-      this.packedSlope[idx4] = -kx * h_i - kz * h_r;
-      this.packedSlope[idx4 + 1] = kx * h_r - kz * h_i;
-      this.packedSlope[idx4 + 2] = 0.0;
-      this.packedSlope[idx4 + 3] = 0.0;
-
-      if (kLenSq > 1e-10) {
-        const invK = 1.0 / Math.sqrt(kLenSq);
-        const kx2_invK = kx * kx * invK;
-        const kz2_invK = kz * kz * invK;
-        const kxkz_invK = kx * kz * invK;
-
-        this.packedFoam[idx4] = kx2_invK * h_r - kz2_invK * h_i;
-        this.packedFoam[idx4 + 1] = kx2_invK * h_i + kz2_invK * h_r;
-        this.packedFoam[idx4 + 2] = kxkz_invK * h_r;
-        this.packedFoam[idx4 + 3] = kxkz_invK * h_i;
-      } else {
-        this.packedFoam[idx4] = 0.0;
-        this.packedFoam[idx4 + 1] = 0.0;
-        this.packedFoam[idx4 + 2] = 0.0;
-        this.packedFoam[idx4 + 3] = 0.0;
-      }
     }
 
     this.dispStorageBuffer.update(this.packedDisplacement);
-    this.slopeStorageBuffer.update(this.packedSlope);
-    this.foamStorageBuffer.update(this.packedFoam);
-
     this.ifftHelper.execute(this.dispStorageBuffer, this.displacementTexture);
-    this.ifftHelper.execute(this.slopeStorageBuffer, this.slopeTexture);
-    this.ifftHelper.execute(this.foamStorageBuffer, this.foamTexture);
   }
 
   updateSpectrum(t: number) {

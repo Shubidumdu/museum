@@ -30,9 +30,9 @@ import outlinePostProcessShader from "./outline_postprocess.glsl?raw";
 import { createScreentoneMaterial } from "./ScreentoneCelShader.ts";
 
 import bedGlbUrl from "./bed.glb";
-import bedBaseColorUrl from "./bed_DefaultMaterial_BaseColor.png";
-import bedNormalUrl from "./bed_DefaultMaterial_NormalGL.png";
-import bedAOUrl from "./bed_DefaultMaterial_AO.png";
+import bedBaseColorUrl from "./bed_BaseColor.png";
+import bedNormalUrl from "./bed_NormalGL.png";
+import bedAOUrl from "./bed_AO.png";
 import { degToRad } from "../../src/utils/math";
 
 DracoCompression.Configuration = {
@@ -143,17 +143,11 @@ export function createFFTOceanScene(
     {
       attributes: ["position", "uv"],
       uniforms: [
-        "world",
         "worldViewProjection",
         "uvScale",
-        "domainLength",
-        "meshSize",
-        "cameraPosition",
-        "sunDirection",
-        "sunColor",
         "choppiness",
       ],
-      samplers: ["displacementMap", "slopeMap", "foamMap"],
+      samplers: ["displacementMap"],
     },
   );
 
@@ -161,18 +155,8 @@ export function createFFTOceanScene(
 
   oceanMaterial.backFaceCulling = false;
   oceanMaterial.setTexture("displacementMap", ocean.displacementTexture);
-  oceanMaterial.setTexture("slopeMap", ocean.slopeTexture);
-  oceanMaterial.setTexture("foamMap", ocean.foamTexture);
   oceanMaterial.setFloat("uvScale", uvScale);
   oceanMaterial.setFloat("choppiness", ocean.choppiness);
-  oceanMaterial.setFloat("domainLength", ocean.L);
-  oceanMaterial.setFloat("meshSize", meshSize);
-  oceanMaterial.setVector3(
-    "sunDirection",
-    sunLight.direction.scale(-1).normalize(),
-  );
-  oceanMaterial.setColor3("sunColor", sunLight.diffuse);
-  oceanMaterial.setVector3("cameraPosition", camera.position);
 
   oceanMesh.material = oceanMaterial;
 
@@ -196,7 +180,6 @@ export function createFFTOceanScene(
     {
       attributes: ["position", "uv"],
       uniforms: [
-        "world",
         "worldViewProjection",
         "uvScale",
         "choppiness",
@@ -293,7 +276,6 @@ export function createFFTOceanScene(
     t += engine.getDeltaTime() * 0.01;
     ocean.update(t);
 
-    oceanMaterial.setVector3("cameraPosition", camera.position);
     oceanDepthMaterial.setVector2(
       "depthValues",
       new Vector2(camera.minZ, camera.maxZ - camera.minZ),
