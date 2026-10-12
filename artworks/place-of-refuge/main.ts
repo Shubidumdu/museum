@@ -33,6 +33,7 @@ import bedGlbUrl from "./bed.glb";
 import bedBaseColorUrl from "./bed_BaseColor.png";
 import bedNormalUrl from "./bed_NormalGL.png";
 import bedAOUrl from "./bed_AO.png";
+import oceanAudioUrl from "./ocean.mp3";
 import { degToRad } from "../../src/utils/math";
 
 DracoCompression.Configuration = {
@@ -43,7 +44,7 @@ DracoCompression.Configuration = {
   },
 };
 
-setupArtworkViewer("place-of-refuge");
+setupArtworkViewer("place-of-refuge", { audioUrl: oceanAudioUrl });
 
 const canvas = document.getElementById("artworkCanvas") as HTMLCanvasElement;
 

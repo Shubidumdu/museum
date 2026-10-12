@@ -11,7 +11,15 @@ import {
   type Language,
 } from "../utils/i18n.ts";
 
-export function setupArtworkViewer(slug: string) {
+export interface ViewerOptions {
+  audioUrl?: string;
+  audioVolume?: number;
+}
+
+const volumeOnSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-volume-2 preview-icon"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
+const volumeOffSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-volume-x preview-icon"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="22" x2="16" y1="9" y2="15"/><line x1="16" x2="22" y1="9" y2="15"/></svg>`;
+
+export function setupArtworkViewer(slug: string, options?: ViewerOptions) {
   const artwork = ARTWORKS.find((a) => a.slug === slug);
   if (!artwork) {
     console.error(`Artwork with slug "${slug}" not found.`);
@@ -20,6 +28,55 @@ export function setupArtworkViewer(slug: string) {
 
   const currentLang = getLanguage();
   document.title = `${getArtworkTitle(artwork, currentLang)} | Shubidumdu Museum`;
+
+  let isAudioPlaying = false;
+  let ambientAudio: HTMLAudioElement | null = null;
+
+  if (options?.audioUrl) {
+    ambientAudio = new Audio(options.audioUrl);
+    ambientAudio.loop = true;
+    ambientAudio.volume = options.audioVolume ?? 0.5;
+
+    const tryAutoPlay = () => {
+      if (!ambientAudio) return;
+      ambientAudio
+        .play()
+        .then(() => {
+          isAudioPlaying = true;
+          updateAudioButtonUI(getLanguage());
+        })
+        .catch(() => {
+          isAudioPlaying = false;
+          updateAudioButtonUI(getLanguage());
+
+          const unlock = () => {
+            if (ambientAudio && !isAudioPlaying) {
+              ambientAudio
+                .play()
+                .then(() => {
+                  isAudioPlaying = true;
+                  updateAudioButtonUI(getLanguage());
+                })
+                .catch(() => {});
+            }
+            window.removeEventListener("pointerdown", unlock);
+            window.removeEventListener("keydown", unlock);
+          };
+          window.addEventListener("pointerdown", unlock, { once: true });
+          window.addEventListener("keydown", unlock, { once: true });
+        });
+    };
+
+    tryAutoPlay();
+  }
+
+  const audioButtonHtml = options?.audioUrl
+    ? `
+      <button class="action-btn" id="btnAudio" title="${currentLang === "ko" ? "소리 끄기" : "Mute"}">
+        <span id="btnAudioIcon">${volumeOnSvg}</span>
+      </button>
+    `
+    : "";
 
   const header = document.createElement("header");
   header.className = "viewer-header";
@@ -30,6 +87,7 @@ export function setupArtworkViewer(slug: string) {
       </span>
     </a>
     <div class="viewer-controls">
+      ${audioButtonHtml}
       <button class="action-btn lang-toggle-btn" id="viewerLangToggle" type="button" aria-label="Toggle language" title="${currentLang === "ko" ? "언어 변경" : "Change language"}">
         <span class="lang-opt lang-opt-ko ${currentLang === "ko" ? "active" : ""}">KO</span>
         <span class="lang-divider">/</span>
@@ -93,6 +151,38 @@ export function setupArtworkViewer(slug: string) {
     toggleLanguage();
   });
 
+  function updateAudioButtonUI(lang: Language) {
+    const btnAudio = document.getElementById("btnAudio");
+    const iconSpan = document.getElementById("btnAudioIcon");
+    if (!btnAudio || !iconSpan) return;
+
+    btnAudio.setAttribute(
+      "title",
+      isAudioPlaying
+        ? (lang === "ko" ? "소리 끄기" : "Mute")
+        : (lang === "ko" ? "소리 켜기" : "Unmute"),
+    );
+    iconSpan.innerHTML = isAudioPlaying ? volumeOnSvg : volumeOffSvg;
+  }
+
+  const btnAudio = document.getElementById("btnAudio");
+  btnAudio?.addEventListener("click", () => {
+    if (!ambientAudio) return;
+    if (isAudioPlaying) {
+      ambientAudio.pause();
+      isAudioPlaying = false;
+    } else {
+      ambientAudio
+        .play()
+        .then(() => {
+          isAudioPlaying = true;
+          updateAudioButtonUI(getLanguage());
+        })
+        .catch(() => {});
+    }
+    updateAudioButtonUI(getLanguage());
+  });
+
   const updateViewerLanguage = (lang: Language) => {
     document.title = `${getArtworkTitle(artwork, lang)} | Shubidumdu Museum`;
 
@@ -121,6 +211,8 @@ export function setupArtworkViewer(slug: string) {
         lang === "ko" ? "전체화면" : "Toggle Fullscreen",
       );
     }
+
+    updateAudioButtonUI(lang);
 
     if (viewerLangToggle) {
       viewerLangToggle.setAttribute(
