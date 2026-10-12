@@ -8,6 +8,7 @@ import {
   Constants,
 } from "@babylonjs/core";
 import { IFFT2D } from "../../src/helpers/ifft2d";
+import { createSeededRandom } from "../../src/utils/math";
 
 export interface OceanParameters {
   gridSize: number;
@@ -16,6 +17,7 @@ export interface OceanParameters {
   windDirection: Vector2;
   amplitude: number;
   choppiness?: number;
+  seed?: number;
 }
 
 export interface DominantWaveMode {
@@ -35,6 +37,7 @@ export class FFTOcean {
   readonly windSpeed: number;
   readonly windDirection: Vector2;
   readonly amplitude: number;
+  readonly seed: number;
   choppiness: number;
   dominantModes: DominantWaveMode[] = [];
 
@@ -71,6 +74,7 @@ export class FFTOcean {
       windSpeed,
       amplitude,
       choppiness = 1.2,
+      seed = 128,
     }: OceanParameters,
   ) {
     this.engine = engine;
@@ -80,6 +84,7 @@ export class FFTOcean {
     this.windDirection = windDirection.normalize();
     this.amplitude = amplitude;
     this.choppiness = choppiness;
+    this.seed = seed;
 
     const N = this.N;
     const totalSize = N * N;
@@ -164,6 +169,8 @@ export class FFTOcean {
     const A = this.amplitude;
     const Lwind = Math.pow(windSpeed, 2) / g;
 
+    const random = createSeededRandom(this.seed);
+
     for (let m = 0; m < N; m++) {
       const kz = (2 * Math.PI * (m - N / 2)) / L;
 
@@ -195,8 +202,8 @@ export class FFTOcean {
           phillips = A * decay * (kDotW * kDotW);
         }
 
-        const u1 = Math.max(1e-7, Math.random());
-        const u2 = Math.random();
+        const u1 = Math.max(1e-7, random());
+        const u2 = random();
         const randStd = Math.sqrt(-2.0 * Math.log(u1));
         const xi_r = randStd * Math.cos(2.0 * Math.PI * u2);
         const xi_i = randStd * Math.sin(2.0 * Math.PI * u2);

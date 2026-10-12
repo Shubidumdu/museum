@@ -14,7 +14,6 @@ import {
   Constants,
   Texture,
   TransformNode,
-  SceneLoader,
   DracoCompression,
   Scalar,
   ImportMeshAsync,
