@@ -19,6 +19,8 @@ export interface ViewerOptions {
 
 const volumeOnSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-volume-2 preview-icon"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
 const volumeOffSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-volume-x preview-icon"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="22" x2="16" y1="9" y2="15"/><line x1="16" x2="22" y1="9" y2="15"/></svg>`;
+const eyeOffSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-eye-off preview-icon"><path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499A10.75 10.75 0 0 1 2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.42-5.58"/><line x1="2" x2="22" y1="2" y2="22"/></svg>`;
+const eyeSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-eye preview-icon"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>`;
 
 function getLicenseUrl(
   license: string,
@@ -164,6 +166,9 @@ export function setupArtworkViewer(slug: string, options?: ViewerOptions) {
         <span class="lang-opt lang-opt-en ${currentLang === "en" ? "active" : ""}">EN</span>
       </button>
       ${audioButtonHtml}
+      <button class="action-btn" id="btnToggleUI" title="${currentLang === "ko" ? "UI 숨기기 (단축키: H 또는 ESC)" : "Hide UI (Shortcut: H or ESC)"}">
+        <span>${eyeOffSvg}</span>
+      </button>
       <button class="action-btn" id="btnFullscreen" title="${currentLang === "ko" ? "전체화면" : "Toggle Fullscreen"}">
         <span>
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-fullscreen preview-icon"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><rect width="10" height="8" x="7" y="8" rx="1"/></svg>
@@ -221,6 +226,78 @@ export function setupArtworkViewer(slug: string, options?: ViewerOptions) {
   const viewerLangToggle = document.getElementById("viewerLangToggle");
   viewerLangToggle?.addEventListener("click", () => {
     toggleLanguage();
+  });
+
+  const restoreBtn = document.createElement("button");
+  restoreBtn.className = "action-btn restore-ui-btn";
+  restoreBtn.id = "btnRestoreUI";
+  restoreBtn.type = "button";
+  restoreBtn.setAttribute(
+    "title",
+    currentLang === "ko" ? "UI 다시 표시 (H / ESC)" : "Show UI (H / ESC)",
+  );
+  restoreBtn.innerHTML = `
+    <span>${eyeSvg}</span>
+    <span id="restoreUiLabel">${currentLang === "ko" ? "UI 표시" : "Show UI"}</span>
+  `;
+  document.body.appendChild(restoreBtn);
+
+  let isUIHidden = false;
+  let restoreTimer: number | null = null;
+
+  const setUIHidden = (hidden: boolean) => {
+    isUIHidden = hidden;
+    document.body.classList.toggle("ui-hidden", hidden);
+
+    if (hidden) {
+      restoreBtn.classList.add("visible");
+      resetRestoreTimer();
+    } else {
+      restoreBtn.classList.remove("visible");
+      if (restoreTimer !== null) {
+        window.clearTimeout(restoreTimer);
+        restoreTimer = null;
+      }
+    }
+  };
+
+  const resetRestoreTimer = () => {
+    if (restoreTimer !== null) {
+      window.clearTimeout(restoreTimer);
+    }
+    restoreBtn.classList.add("visible");
+    restoreTimer = window.setTimeout(() => {
+      restoreBtn.classList.remove("visible");
+    }, 2500);
+  };
+
+  window.addEventListener("pointermove", () => {
+    if (isUIHidden) {
+      resetRestoreTimer();
+    }
+  });
+
+  const btnToggleUI = document.getElementById("btnToggleUI");
+  btnToggleUI?.addEventListener("click", () => {
+    setUIHidden(true);
+  });
+
+  restoreBtn.addEventListener("click", () => {
+    setUIHidden(false);
+  });
+
+  window.addEventListener("keydown", (e) => {
+    if (
+      e.target instanceof HTMLInputElement ||
+      e.target instanceof HTMLTextAreaElement
+    ) {
+      return;
+    }
+    if (e.key === "h" || e.key === "H") {
+      setUIHidden(!isUIHidden);
+    } else if (e.key === "Escape" && isUIHidden) {
+      setUIHidden(false);
+    }
   });
 
   function updateAudioButtonUI(lang: Language) {
@@ -290,6 +367,28 @@ export function setupArtworkViewer(slug: string, options?: ViewerOptions) {
         "title",
         lang === "ko" ? "전체화면" : "Toggle Fullscreen",
       );
+    }
+
+    const btnToggleUI = document.getElementById("btnToggleUI");
+    if (btnToggleUI) {
+      btnToggleUI.setAttribute(
+        "title",
+        lang === "ko"
+          ? "UI 숨기기 (단축키: H 또는 ESC)"
+          : "Hide UI (Shortcut: H or ESC)",
+      );
+    }
+
+    if (restoreBtn) {
+      restoreBtn.setAttribute(
+        "title",
+        lang === "ko" ? "UI 다시 표시 (H / ESC)" : "Show UI (H / ESC)",
+      );
+    }
+
+    const restoreUiLabel = document.getElementById("restoreUiLabel");
+    if (restoreUiLabel) {
+      restoreUiLabel.textContent = lang === "ko" ? "UI 표시" : "Show UI";
     }
 
     updateAudioButtonUI(lang);
