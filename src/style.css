@@ -366,6 +366,10 @@ body.ui-hidden .restore-ui-btn.visible:hover {
   transform: translateY(-2px) scale(1.05);
 }
 
+body.clean-mode .restore-ui-btn {
+  display: none !important;
+}
+
 .plaque-header {
   display: flex;
   justify-content: space-between;

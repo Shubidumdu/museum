@@ -13,6 +13,15 @@ function detectBrowserLanguage(): Language {
 }
 
 export function getInitialLanguage(): Language {
+  if (typeof window !== "undefined") {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const langParam = urlParams.get("lang")?.toLowerCase();
+      if (langParam === "ko" || langParam === "en") {
+        return langParam;
+      }
+    } catch {}
+  }
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved === "ko" || saved === "en") {

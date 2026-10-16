@@ -15,6 +15,7 @@ import {
 export interface ViewerOptions {
   audioUrl?: string;
   audioVolume?: number;
+  initialUIHidden?: boolean;
 }
 
 const volumeOnSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-volume-2 preview-icon"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
@@ -143,6 +144,37 @@ export function setupArtworkViewer(slug: string, options?: ViewerOptions) {
     tryAutoPlay();
   }
 
+  // Check URL query parameters or options for initial UI hidden state
+  // Examples: ?ui=false, ?ui=hide, ?ui=0, ?hideUI=true, ?clean
+  const urlParams = new URLSearchParams(window.location.search);
+  const uiParam = urlParams.get("ui")?.toLowerCase();
+  const hideUiParam =
+    urlParams.get("hideui")?.toLowerCase() ??
+    urlParams.get("hideUI")?.toLowerCase();
+  const isClean =
+    urlParams.has("clean") ||
+    urlParams.get("clean") === "true" ||
+    uiParam === "none";
+
+  let shouldHideUI = options?.initialUIHidden ?? false;
+
+  if (isClean) {
+    shouldHideUI = true;
+    document.body.classList.add("clean-mode");
+  } else if (urlParams.has("hideUI") || urlParams.has("hideui")) {
+    shouldHideUI = hideUiParam !== "false" && hideUiParam !== "0";
+  } else if (uiParam !== undefined) {
+    shouldHideUI =
+      uiParam === "false" ||
+      uiParam === "hide" ||
+      uiParam === "hidden" ||
+      uiParam === "0";
+  }
+
+  if (shouldHideUI) {
+    document.body.classList.add("ui-hidden");
+  }
+
   const audioButtonHtml = options?.audioUrl
     ? `
       <button class="action-btn" id="btnAudio" title="${currentLang === "ko" ? "소리 끄기" : "Mute"}">
@@ -242,16 +274,24 @@ export function setupArtworkViewer(slug: string, options?: ViewerOptions) {
   `;
   document.body.appendChild(restoreBtn);
 
-  let isUIHidden = false;
+  let isUIHidden = shouldHideUI;
   let restoreTimer: number | null = null;
 
-  const setUIHidden = (hidden: boolean) => {
+  const setUIHidden = (hidden: boolean, notify = true) => {
     isUIHidden = hidden;
     document.body.classList.toggle("ui-hidden", hidden);
 
+    if (!hidden) {
+      document.body.classList.remove("clean-mode");
+    }
+
     if (hidden) {
-      restoreBtn.classList.add("visible");
-      resetRestoreTimer();
+      if (notify) {
+        restoreBtn.classList.add("visible");
+        resetRestoreTimer();
+      } else {
+        restoreBtn.classList.remove("visible");
+      }
     } else {
       restoreBtn.classList.remove("visible");
       if (restoreTimer !== null) {
