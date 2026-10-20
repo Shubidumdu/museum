@@ -53,6 +53,18 @@ Yet, humble and modest as it may be, having this small haven to hold my dreams i
       },
     ],
   },
+  {
+    id: "march",
+    slug: "march",
+    title: {
+      ko: "March",
+      en: "March",
+    },
+    description: {
+      ko: "레이 마칭(Ray Marching)과 부호 거리 함수(SDF)를 기반으로 공간과 형태를 탐색하는 실험적 아트워크.",
+      en: "An experimental artwork exploring space and form through Ray Marching and Signed Distance Functions (SDF).",
+    },
+  },
 ];
 
 export function getArtworkTitle(artwork: Artwork, lang: Language): string {
