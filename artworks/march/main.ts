@@ -1,5 +1,5 @@
 import {
-  WebGPUEngine,
+  Engine,
   Scene,
   Vector3,
   Color4,
@@ -8,10 +8,7 @@ import {
   PostProcess,
   Constants,
 } from "@babylonjs/core";
-import {
-  setupArtworkViewer,
-  showWebGPUFallback,
-} from "../../src/components/viewer-shell.ts";
+import { setupArtworkViewer } from "../../src/components/viewer-shell.ts";
 import { CustomLoadingScreen } from "../../src/components/loading-screen.ts";
 import { degToRad } from "../../src/utils/math.ts";
 import raymarchFragmentShader from "./raymarch_fragment.glsl?raw";
@@ -20,42 +17,15 @@ const canvas = document.getElementById("artworkCanvas") as HTMLCanvasElement;
 
 /**
  * 레이 마칭 아트워크("march") 초기화 함수
+ * 프래그먼트 셰이더만으로 동작하므로 호환성과 초기 구동 속도가 뛰어난 WebGL(Engine)을 사용합니다.
  */
-async function initializeMarchApp() {
-  let isWebGPUSupported = false;
-  try {
-    isWebGPUSupported =
-      typeof navigator !== "undefined" &&
-      "gpu" in navigator &&
-      (await WebGPUEngine.IsSupportedAsync);
-  } catch {
-    isWebGPUSupported = false;
-  }
-
-  if (!isWebGPUSupported) {
-    console.warn(
-      "⚠️ WebGPU not available on this device. Displaying fallback screen.",
-    );
-    setupArtworkViewer("march");
-    showWebGPUFallback();
-    return;
-  }
-
+function initializeMarchApp() {
   // 아트워크 뷰어 UI(헤더, 도슨트 명판, UI 숨김 단축키 등) 초기화
-  // setupArtworkViewer("march");
+  setupArtworkViewer("march");
 
-  let engine: WebGPUEngine;
-  try {
-    engine = new WebGPUEngine(canvas, {
-      antialias: false,
-      powerPreference: "high-performance",
-    });
-    await engine.initAsync();
-  } catch (err) {
-    console.error("Failed to initialize WebGPUEngine:", err);
-    showWebGPUFallback();
-    return;
-  }
+  const engine = new Engine(canvas, false, {
+    powerPreference: "high-performance",
+  });
 
   engine.loadingScreen = new CustomLoadingScreen(
     "#d03f2c",
@@ -88,7 +58,7 @@ async function initializeMarchApp() {
  * 프래그먼트 셰이더(`raymarch_fragment.glsl`)를 실행하여 모든 픽셀에서 광선을 쏩니다.
  */
 export function createRaymarchScene(
-  engine: WebGPUEngine,
+  engine: Engine,
   canvas: HTMLCanvasElement,
 ): Scene {
   const scene = new Scene(engine);
@@ -101,8 +71,8 @@ export function createRaymarchScene(
   const camera = new ArcRotateCamera(
     "RaymarchCamera",
     degToRad(-60), // 수평 회전각 (Alpha)
-    degToRad(70), // 수직 회전각 (Beta)
-    6.0, // 타겟으로부터의 거리 (Radius)
+    degToRad(70),  // 수직 회전각 (Beta)
+    6.0,           // 타겟으로부터의 거리 (Radius)
     target,
     scene,
   );
@@ -122,11 +92,11 @@ export function createRaymarchScene(
     "raymarchPass",
     "raymarch", // Effect.ShadersStore["raymarchFragmentShader"] 참조
     [
-      "resolution", // 화면 가로/세로 픽셀 크기
-      "time", // 애니메이션용 경과 시간
-      "cameraPos", // 카메라 월드 위치 (Ray Origin)
+      "resolution",   // 화면 가로/세로 픽셀 크기
+      "time",         // 애니메이션용 경과 시간
+      "cameraPos",    // 카메라 월드 위치 (Ray Origin)
       "cameraTarget", // 카메라가 바라보는 목표점
-      "cameraFov", // 카메라 시야각 (라디안)
+      "cameraFov",    // 카메라 시야각 (라디안)
     ],
     [], // 추가 텍스처 샘플러 목록 (필요 시 여기에 텍스처 이름 추가)
     1.0,
