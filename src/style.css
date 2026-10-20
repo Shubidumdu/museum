@@ -463,8 +463,17 @@ body.clean-mode .restore-ui-btn {
 }
 
 @media (max-width: 768px) {
+  .museum-header {
+    justify-content: flex-start;
+    padding: 0.25rem 1rem;
+  }
+
+  .museum-header .brand {
+    max-width: 180px;
+  }
+
   .museum-header .header-controls {
-    right: 0.75rem;
+    right: 1rem;
   }
 
   .gallery-section {
