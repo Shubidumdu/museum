@@ -71,8 +71,8 @@ export function createRaymarchScene(
   const camera = new ArcRotateCamera(
     "RaymarchCamera",
     degToRad(-60), // 수평 회전각 (Alpha)
-    degToRad(70),  // 수직 회전각 (Beta)
-    6.0,           // 타겟으로부터의 거리 (Radius)
+    degToRad(70), // 수직 회전각 (Beta)
+    6.0, // 타겟으로부터의 거리 (Radius)
     target,
     scene,
   );
@@ -92,11 +92,11 @@ export function createRaymarchScene(
     "raymarchPass",
     "raymarch", // Effect.ShadersStore["raymarchFragmentShader"] 참조
     [
-      "resolution",   // 화면 가로/세로 픽셀 크기
-      "time",         // 애니메이션용 경과 시간
-      "cameraPos",    // 카메라 월드 위치 (Ray Origin)
+      "resolution", // 화면 가로/세로 픽셀 크기
+      "time", // 애니메이션용 경과 시간
+      "cameraPos", // 카메라 월드 위치 (Ray Origin)
       "cameraTarget", // 카메라가 바라보는 목표점
-      "cameraFov",    // 카메라 시야각 (라디안)
+      "cameraFov", // 카메라 시야각 (라디안)
     ],
     [], // 추가 텍스처 샘플러 목록 (필요 시 여기에 텍스처 이름 추가)
     1.0,
